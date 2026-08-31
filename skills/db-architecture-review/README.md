@@ -63,7 +63,7 @@ keys, tenant gaps — need a claim to check against.
 |---|---|---|
 | domain-coverage | error | table in no domain / domain lists a phantom table |
 | primary-key | error | table without PK |
-| cardinality | error/warn | asserted 1:1 modelled as 1:N (no UNIQUE on FK) or vice versa; asserted relationship with no FK |
+| cardinality | error/warn | asserted 1:1 modelled as 1:N (no UNIQUE on FK) or vice versa; asserted relationship with no FK; ambiguous or empty-`columns` entry |
 | natural-key | error | asserted business key not UNIQUE |
 | junction-uniqueness | error | M:N link table that allows duplicate pairs |
 | money-float | error | amount/price/… stored as float |

@@ -801,32 +801,46 @@ export class Reviewer {
     for (const a of (this.a.cardinality ?? []) as Narratives[]) {
       const child = this.t.get(a.child);
       if (!child) continue;
-      const fks = child.fks.filter((fk) => fk.ref_table === a.parent
-        && (!Array.isArray(a.columns) || sameSet(a.columns as string[], fk.columns)));
-      if (!fks.length) {
+      const fk = resolveCardinality(child, a);
+      if (fk === 'empty') {
+        this.add('cardinality', 'warn', a.child, [], 'Narrative entry has empty `columns`',
+          `The \`${a.parent}\` → \`${a.child}\` entry in assertions.cardinality has \`"columns": []\`, `
+          + 'which matches no foreign key, so its claims are checked against nothing.',
+          'Name the foreign-key columns the entry means, or remove the `columns` field.');
+        continue;
+      }
+      if (fk === 'ambiguous') {
+        const lists = child.fks.filter((k) => k.ref_table === a.parent)
+          .map((k) => `\`[${k.columns.map((c) => `"${c}"`).join(', ')}]\``).join(' or ');
+        this.add('cardinality', 'warn', a.child, [], 'Ambiguous relationship narrative',
+          `\`${a.child}\` has more than one foreign key to \`${a.parent}\` (${lists}), and the `
+          + 'assertions.cardinality entry does not say which it means, so its `expect` and `why` '
+          + 'apply to none of them.',
+          `Add \`"columns"\` with one of ${lists} to the entry (one entry per foreign key).`);
+        continue;
+      }
+      if (!fk) {
         this.add('cardinality', 'error', a.child, [], 'Asserted relationship has no foreign key',
           `narratives.json says \`${a.parent}\` → \`${a.child}\` ${a.expect ? `is ${a.expect}` : 'exists'}, but there is `
           + 'no FK from the child to the parent. The relationship exists only in application code.',
           'Add the FK, or correct the narrative.');
         continue;
       }
-      for (const fk of fks) {
-        if (a.expect === '1:1' && !fk.unique) {
-          const cols = fk.columns.join(', ');
-          this.add('cardinality', 'error', a.child, fk.columns,
-            'Modelled 1:N but intended 1:1',
-            `The narrative says each \`${a.parent}\` has exactly one \`${a.child}\`, but `
-            + `\`${cols}\` is not UNIQUE, so the database happily stores five. Application code `
-            + 'that does `.single()` or `LIMIT 1` will return an arbitrary row.',
-            'Make the FK column(s) unique — or make it the primary key.',
-            `ALTER TABLE ${a.child} ADD CONSTRAINT ${a.child}_${fk.columns.join('_')}_key UNIQUE (${cols});`);
-        } else if (a.expect === '1:N' && fk.unique) {
-          this.add('cardinality', 'warn', a.child, fk.columns,
-            'Modelled 1:1 but intended 1:N',
-            `The narrative expects many \`${a.child}\` per \`${a.parent}\`, but the FK is `
-            + 'UNIQUE, so the second child will fail to insert.',
-            'Drop the unique constraint, or fix the narrative.');
-        }
+      if (a.expect === '1:1' && !fk.unique) {
+        const cols = fk.columns.join(', ');
+        this.add('cardinality', 'error', a.child, fk.columns,
+          'Modelled 1:N but intended 1:1',
+          `The narrative says each \`${a.parent}\` has exactly one \`${a.child}\`, but `
+          + `\`${cols}\` is not UNIQUE, so the database happily stores five. Application code `
+          + 'that does `.single()` or `LIMIT 1` will return an arbitrary row.',
+          'Make the FK column(s) unique — or make it the primary key.',
+          `ALTER TABLE ${a.child} ADD CONSTRAINT ${a.child}_${fk.columns.join('_')}_key UNIQUE (${cols});`);
+      } else if (a.expect === '1:N' && fk.unique) {
+        this.add('cardinality', 'warn', a.child, fk.columns,
+          'Modelled 1:1 but intended 1:N',
+          `The narrative expects many \`${a.child}\` per \`${a.parent}\`, but the FK is `
+          + 'UNIQUE, so the second child will fail to insert.',
+          'Drop the unique constraint, or fix the narrative.');
       }
     }
   }
@@ -1212,16 +1226,30 @@ export interface Relationship {
 
 /** One entry per foreign key of `t`: what the schema enforces, plus the `why` from the matching
  *  `assertions.cardinality` entry in narratives.json when someone has written one. */
+/**
+ * Which foreign key of `child` a cardinality entry means. An entry naming `columns` means the
+ * foreign key with exactly those columns; one without means the only foreign key to that parent.
+ * 'ambiguous' when the pair needs `columns` and has none, 'empty' for `"columns": []`, null when
+ * nothing matches. The check and the docs both resolve through here, so an entry can never be
+ * enforced against one foreign key while its `why` is printed beside another.
+ */
+export function resolveCardinality(child: Table, a: Narratives): ForeignKey | 'ambiguous' | 'empty' | null {
+  const siblings = child.fks.filter((fk) => fk.ref_table === a.parent);
+  if (Array.isArray(a.columns)) {
+    if (!(a.columns as string[]).length) return 'empty';
+    return siblings.find((fk) => sameSet(a.columns as string[], fk.columns)) ?? null;
+  }
+  if (siblings.length > 1) return 'ambiguous';
+  return siblings[0] ?? null;
+}
+
 export function relationships(t: Table, narratives: Narratives | null | undefined): Relationship[] {
   const notes = ((narratives?.assertions ?? {}).cardinality ?? []) as Narratives[];
   return t.fks.map((fk) => {
-    // An entry naming `columns` belongs to that foreign key alone. One without applies only
-    // when the pair is unambiguous, so two foreign keys to one parent never share a sentence.
-    const candidates = notes.filter((a) => a.parent === fk.ref_table && a.child === t.name
-      && typeof a.why === 'string' && a.why.trim() !== '');
-    const siblings = t.fks.filter((k) => k.ref_table === fk.ref_table).length;
-    const note = candidates.find((a) => Array.isArray(a.columns) && sameSet(a.columns as string[], fk.columns))
-      ?? (siblings === 1 ? candidates.find((a) => !Array.isArray(a.columns)) : undefined);
+    // The same resolver the cardinality check uses, so a why is printed exactly beside the
+    // foreign key the entry's expect is enforced against — never a sibling.
+    const note = notes.find((a) => a.parent === fk.ref_table && a.child === t.name
+      && typeof a.why === 'string' && (a.why as string).trim() !== '' && resolveCardinality(t, a) === fk);
     return {
       child: t.name, columns: fk.columns, parent: fk.ref_table, ref_columns: fk.ref_columns,
       cardinality: fk.cardinality, required: !fk.nullable, on_delete: fk.on_delete, indexed: fk.indexed,
