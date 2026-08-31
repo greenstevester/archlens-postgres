@@ -1,0 +1,3334 @@
+{
+  "generated_at": "2026-08-31T09:46:59+00:00",
+  "source": "examples/sample-schema.sql",
+  "stats": {
+    "tables": 19,
+    "columns": 95,
+    "foreign_keys": 22,
+    "domains": 6,
+    "findings": {
+      "error": 8,
+      "warn": 18,
+      "info": 12
+    }
+  },
+  "database": {
+    "title": "Portal database",
+    "blurb": "Multi-tenant self-service portal. Provider → Tenant hierarchy; every tenant-scoped table carries tenant_id and is protected by row-level security."
+  },
+  "conventions": [
+    "Primary keys are UUID v4 (gen_random_uuid()) except append-only logs, which use BIGSERIAL.",
+    "Every tenant-scoped table has a tenant_id column and an RLS policy keyed on app.tenant_id.",
+    "Timestamps are TIMESTAMPTZ.",
+    "Enum-like columns carry a CHECK constraint or use a PostgreSQL ENUM type.",
+    "Soft delete uses deleted_at; uniqueness on soft-deleted tables must be partial (WHERE deleted_at IS NULL)."
+  ],
+  "domains": [
+    {
+      "key": "tenant",
+      "title": "Multi-tenancy",
+      "blurb": "The Provider → Tenant hierarchy every other table hangs off, with per-tenant settings and auth configuration. Each tenant has exactly one settings row and at most one auth config.",
+      "tenant_scoped": false,
+      "tables": [
+        "provider",
+        "tenant",
+        "tenant_settings",
+        "tenant_auth_config"
+      ]
+    },
+    {
+      "key": "auth",
+      "title": "Authentication & identity",
+      "blurb": "Who can log in and how: users and their sessions.",
+      "tenant_scoped": true,
+      "tables": [
+        "users",
+        "sessions"
+      ]
+    },
+    {
+      "key": "permission",
+      "title": "Permissions (RBAC)",
+      "blurb": "Roles per tenant, the global permission catalogue, and the two junction tables that tie users → roles → permissions.",
+      "tenant_scoped": true,
+      "tables": [
+        "role",
+        "permission",
+        "role_permission",
+        "user_role"
+      ]
+    },
+    {
+      "key": "github",
+      "title": "GitHub integration",
+      "blurb": "One provider-level GitHub App serves the whole portal; tenants map to it via installations, and webhook deliveries are stored raw per installation.",
+      "tenant_scoped": true,
+      "tables": [
+        "github_app_config",
+        "github_app_installation",
+        "webhook_delivery"
+      ]
+    },
+    {
+      "key": "approvals",
+      "title": "Approvals & audit",
+      "blurb": "Service requests and deployments that need sign-off, and the append-only audit trail.",
+      "tenant_scoped": true,
+      "tables": [
+        "service_request",
+        "deployment",
+        "approval_request",
+        "audit_event"
+      ]
+    },
+    {
+      "key": "billing",
+      "title": "Billing",
+      "blurb": "Invoice lines per tenant.",
+      "tenant_scoped": true,
+      "tables": [
+        "invoice_line"
+      ]
+    }
+  ],
+  "assertions": {
+    "tenant_table": "tenant",
+    "tenant_column": "tenant_id",
+    "require_rls": true,
+    "global_tables": [
+      "provider",
+      "permission",
+      "github_app_config"
+    ],
+    "singleton_tables": [
+      "github_app_config"
+    ],
+    "cardinality": [
+      {
+        "parent": "tenant",
+        "child": "tenant_settings",
+        "expect": "1:1"
+      },
+      {
+        "parent": "tenant",
+        "child": "tenant_auth_config",
+        "expect": "1:1"
+      },
+      {
+        "parent": "tenant",
+        "child": "users",
+        "expect": "1:N"
+      },
+      {
+        "parent": "github_app_installation",
+        "child": "webhook_delivery",
+        "expect": "1:N"
+      }
+    ],
+    "natural_keys": [
+      {
+        "table": "github_app_installation",
+        "columns": [
+          "tenant_id",
+          "installation_id"
+        ]
+      },
+      {
+        "table": "webhook_delivery",
+        "columns": [
+          "delivery_guid"
+        ]
+      }
+    ],
+    "exclusive_arcs": [
+      {
+        "table": "approval_request",
+        "columns": [
+          "service_request_id",
+          "deployment_id"
+        ]
+      }
+    ]
+  },
+  "extras": {
+    "extensions": [
+      "pgcrypto"
+    ],
+    "enums": {
+      "approval_state": [
+        "pending",
+        "approved",
+        "rejected"
+      ]
+    },
+    "unparsed": []
+  },
+  "tables": {
+    "provider": {
+      "name": "provider",
+      "schema": "public",
+      "description": [
+        "Top of the hierarchy. One row per hosting provider."
+      ],
+      "section": "PHASE 1 — Multi-tenancy",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "name",
+          "type": "varchar(255)",
+          "type_base": "varchar",
+          "length": 255,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [
+        {
+          "table": "tenant",
+          "columns": [
+            "provider_id"
+          ],
+          "on_delete": "RESTRICT",
+          "cardinality": "1:N"
+        }
+      ],
+      "domain": "tenant",
+      "findings": [],
+      "source_line": 15
+    },
+    "tenant": {
+      "name": "tenant",
+      "schema": "public",
+      "description": [
+        "A customer organisation. Everything tenant-scoped hangs off this row."
+      ],
+      "section": "PHASE 1 — Multi-tenancy",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "provider_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "slug",
+          "type": "varchar(63)",
+          "type_base": "varchar",
+          "length": 63,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": true,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "display_name",
+          "type": "varchar(255)",
+          "type_base": "varchar",
+          "length": 255,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "status",
+          "type": "varchar(20)",
+          "type_base": "varchar",
+          "length": 20,
+          "not_null": true,
+          "default": "'active'",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "slug"
+        ]
+      ],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "provider_id"
+          ],
+          "ref_table": "provider",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "RESTRICT",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": "idx_tenant_provider",
+          "columns": [
+            "provider_id"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        },
+        {
+          "name": null,
+          "columns": [
+            "slug"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "unique-constraint"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [
+        {
+          "table": "tenant_settings",
+          "columns": [
+            "tenant_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "tenant_auth_config",
+          "columns": [
+            "tenant_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:1"
+        },
+        {
+          "table": "users",
+          "columns": [
+            "tenant_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "role",
+          "columns": [
+            "tenant_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "github_app_installation",
+          "columns": [
+            "tenant_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "service_request",
+          "columns": [
+            "tenant_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "deployment",
+          "columns": [
+            "tenant_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "approval_request",
+          "columns": [
+            "tenant_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "audit_event",
+          "columns": [
+            "tenant_id"
+          ],
+          "on_delete": "NO ACTION",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "invoice_line",
+          "columns": [
+            "tenant_id"
+          ],
+          "on_delete": "NO ACTION",
+          "cardinality": "1:N"
+        }
+      ],
+      "domain": "tenant",
+      "findings": [
+        "F019",
+        "F037"
+      ],
+      "source_line": 22
+    },
+    "tenant_settings": {
+      "name": "tenant_settings",
+      "schema": "public",
+      "description": [
+        "Per-tenant settings. Intended to be exactly one row per tenant."
+      ],
+      "section": "PHASE 1 — Multi-tenancy",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "timezone",
+          "type": "varchar(64)",
+          "type_base": "varchar",
+          "length": 64,
+          "not_null": true,
+          "default": "'UTC'",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "locale",
+          "type": "varchar(16)",
+          "type_base": "varchar",
+          "length": 16,
+          "not_null": true,
+          "default": "'en'",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "tenant_id"
+          ],
+          "ref_table": "tenant",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": "idx_tenant_settings_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [],
+      "domain": "tenant",
+      "findings": [
+        "F015"
+      ],
+      "source_line": 34
+    },
+    "tenant_auth_config": {
+      "name": "tenant_auth_config",
+      "schema": "public",
+      "description": [
+        "Per-tenant auth config. Correctly modelled 1:1."
+      ],
+      "section": "PHASE 1 — Multi-tenancy",
+      "columns": [
+        {
+          "name": "tenant_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "oidc_issuer",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "mfa_required",
+          "type": "boolean",
+          "type_base": "boolean",
+          "length": null,
+          "not_null": true,
+          "default": "FALSE",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "tenant_id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "tenant_id"
+          ],
+          "ref_table": "tenant",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": true,
+          "indexed": true,
+          "cardinality": "1:1"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "tenant_id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [],
+      "domain": "tenant",
+      "findings": [],
+      "source_line": 44
+    },
+    "users": {
+      "name": "users",
+      "schema": "public",
+      "description": [
+        "Portal users. Soft-deleted."
+      ],
+      "section": "PHASE 2 — Authentication & identity",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": true,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "full_name",
+          "type": "varchar(255)",
+          "type_base": "varchar",
+          "length": 255,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "email"
+        ]
+      ],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "tenant_id"
+          ],
+          "ref_table": "tenant",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": "idx_users_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        },
+        {
+          "name": null,
+          "columns": [
+            "email"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "unique-constraint"
+        }
+      ],
+      "rls_enabled": true,
+      "policies": [
+        "users_tenant_isolation"
+      ],
+      "referenced_by": [
+        {
+          "table": "sessions",
+          "columns": [
+            "user_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "user_role",
+          "columns": [
+            "user_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "github_app_config",
+          "columns": [
+            "created_by"
+          ],
+          "on_delete": "NO ACTION",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "approval_request",
+          "columns": [
+            "requested_by"
+          ],
+          "on_delete": "NO ACTION",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "approval_request",
+          "columns": [
+            "approved_by"
+          ],
+          "on_delete": "NO ACTION",
+          "cardinality": "1:N"
+        }
+      ],
+      "domain": "auth",
+      "findings": [
+        "F024",
+        "F038"
+      ],
+      "source_line": 56
+    },
+    "sessions": {
+      "name": "sessions",
+      "schema": "public",
+      "description": [],
+      "section": "PHASE 2 — Authentication & identity",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp",
+          "type_base": "timestamp",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": "sessions_user_fk",
+          "columns": [
+            "user_id"
+          ],
+          "ref_table": "users",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [],
+      "domain": "auth",
+      "findings": [
+        "F003",
+        "F027",
+        "F030"
+      ],
+      "source_line": 70
+    },
+    "role": {
+      "name": "role",
+      "schema": "public",
+      "description": [],
+      "section": "PHASE 2 — Permissions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "name",
+          "type": "varchar(100)",
+          "type_base": "varchar",
+          "length": 100,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "tenant_id",
+          "name"
+        ]
+      ],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "tenant_id"
+          ],
+          "ref_table": "tenant",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": null,
+          "columns": [
+            "tenant_id",
+            "name"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "unique-constraint"
+        }
+      ],
+      "rls_enabled": true,
+      "policies": [
+        "role_tenant_isolation"
+      ],
+      "referenced_by": [
+        {
+          "table": "role_permission",
+          "columns": [
+            "role_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "user_role",
+          "columns": [
+            "role_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        }
+      ],
+      "domain": "permission",
+      "findings": [],
+      "source_line": 84
+    },
+    "permission": {
+      "name": "permission",
+      "schema": "public",
+      "description": [],
+      "section": "PHASE 2 — Permissions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "code",
+          "type": "varchar(100)",
+          "type_base": "varchar",
+          "length": 100,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": true,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "code"
+        ]
+      ],
+      "checks": [],
+      "fks": [],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": null,
+          "columns": [
+            "code"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "unique-constraint"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [
+        {
+          "table": "role_permission",
+          "columns": [
+            "permission_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        }
+      ],
+      "domain": "permission",
+      "findings": [],
+      "source_line": 93
+    },
+    "role_permission": {
+      "name": "role_permission",
+      "schema": "public",
+      "description": [
+        "Correct junction table: composite PK, both sides indexed."
+      ],
+      "section": "PHASE 2 — Permissions",
+      "columns": [
+        {
+          "name": "role_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "permission_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "role_id",
+        "permission_id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "role_id"
+          ],
+          "ref_table": "role",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        },
+        {
+          "name": null,
+          "columns": [
+            "permission_id"
+          ],
+          "ref_table": "permission",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "role_id",
+            "permission_id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": "idx_role_permission_permission",
+          "columns": [
+            "permission_id"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [],
+      "domain": "permission",
+      "findings": [
+        "F031"
+      ],
+      "source_line": 99
+    },
+    "user_role": {
+      "name": "user_role",
+      "schema": "public",
+      "description": [
+        "⚠ FLAW: junction table with no primary key or unique — duplicate links possible."
+      ],
+      "section": "PHASE 2 — Permissions",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "role_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "granted_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "user_id"
+          ],
+          "ref_table": "users",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "cardinality": "1:N"
+        },
+        {
+          "name": null,
+          "columns": [
+            "role_id"
+          ],
+          "ref_table": "role",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [],
+      "domain": "permission",
+      "findings": [
+        "F002",
+        "F004",
+        "F005",
+        "F018",
+        "F032"
+      ],
+      "source_line": 107
+    },
+    "github_app_config": {
+      "name": "github_app_config",
+      "schema": "public",
+      "description": [
+        "Provider-level single-row App config. NOT tenant-scoped."
+      ],
+      "section": "PHASE 3 — GitHub integration",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "app_id",
+          "type": "bigint",
+          "type_base": "bigint",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "app_slug",
+          "type": "varchar(255)",
+          "type_base": "varchar",
+          "length": 255,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "client_id",
+          "type": "varchar(255)",
+          "type_base": "varchar",
+          "length": 255,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "private_key_encrypted",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "AES-256-GCM via EncryptionService",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "webhook_secret_encrypted",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "status",
+          "type": "varchar(20)",
+          "type_base": "varchar",
+          "length": 20,
+          "not_null": true,
+          "default": "'active'",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "created_by"
+          ],
+          "ref_table": "users",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "NO ACTION",
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [],
+      "domain": "github",
+      "findings": [
+        "F006",
+        "F011",
+        "F020",
+        "F036"
+      ],
+      "source_line": 118
+    },
+    "github_app_installation": {
+      "name": "github_app_installation",
+      "schema": "public",
+      "description": [
+        "Per-tenant installation mapping (tenant -> GitHub App installation)."
+      ],
+      "section": "PHASE 3 — GitHub integration",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "installation_id",
+          "type": "bigint",
+          "type_base": "bigint",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "account_login",
+          "type": "varchar(255)",
+          "type_base": "varchar",
+          "length": 255,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "target_type",
+          "type": "varchar(20)",
+          "type_base": "varchar",
+          "length": 20,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "Organization | User",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "repository_selection",
+          "type": "varchar(20)",
+          "type_base": "varchar",
+          "length": 20,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "all | selected",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "suspended_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "tenant_id"
+          ],
+          "ref_table": "tenant",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": "idx_gh_installation_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        }
+      ],
+      "rls_enabled": true,
+      "policies": [
+        "github_app_installation_tenant_isolation"
+      ],
+      "referenced_by": [
+        {
+          "table": "webhook_delivery",
+          "columns": [
+            "installation_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        }
+      ],
+      "domain": "github",
+      "findings": [
+        "F016",
+        "F021",
+        "F022"
+      ],
+      "source_line": 132
+    },
+    "webhook_delivery": {
+      "name": "webhook_delivery",
+      "schema": "public",
+      "description": [
+        "Raw webhook deliveries. No tenant_id — tenant is reachable via installation."
+      ],
+      "section": "PHASE 3 — GitHub integration",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigserial",
+          "type_base": "bigserial",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "installation_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "delivery_guid",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "event_type",
+          "type": "varchar(64)",
+          "type_base": "varchar",
+          "length": 64,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "type_base": "jsonb",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "received_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "installation_id"
+          ],
+          "ref_table": "github_app_installation",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [],
+      "domain": "github",
+      "findings": [
+        "F007",
+        "F017",
+        "F033"
+      ],
+      "source_line": 147
+    },
+    "service_request": {
+      "name": "service_request",
+      "schema": "public",
+      "description": [],
+      "section": "PHASE 4 — Approvals & audit",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "title",
+          "type": "varchar(255)",
+          "type_base": "varchar",
+          "length": 255,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "tenant_id"
+          ],
+          "ref_table": "tenant",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": "idx_service_request_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        }
+      ],
+      "rls_enabled": true,
+      "policies": [
+        "service_request_tenant_isolation"
+      ],
+      "referenced_by": [
+        {
+          "table": "approval_request",
+          "columns": [
+            "service_request_id"
+          ],
+          "on_delete": "NO ACTION",
+          "cardinality": "1:N"
+        }
+      ],
+      "domain": "approvals",
+      "findings": [],
+      "source_line": 161
+    },
+    "deployment": {
+      "name": "deployment",
+      "schema": "public",
+      "description": [],
+      "section": "PHASE 4 — Approvals & audit",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "target",
+          "type": "varchar(255)",
+          "type_base": "varchar",
+          "length": 255,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "tenant_id"
+          ],
+          "ref_table": "tenant",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": "idx_deployment_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        }
+      ],
+      "rls_enabled": true,
+      "policies": [
+        "deployment_tenant_isolation"
+      ],
+      "referenced_by": [
+        {
+          "table": "approval_request",
+          "columns": [
+            "deployment_id"
+          ],
+          "on_delete": "NO ACTION",
+          "cardinality": "1:N"
+        }
+      ],
+      "domain": "approvals",
+      "findings": [],
+      "source_line": 171
+    },
+    "approval_request": {
+      "name": "approval_request",
+      "schema": "public",
+      "description": [
+        "An approval is for EITHER a service request OR a deployment."
+      ],
+      "section": "PHASE 4 — Approvals & audit",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "service_request_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "deployment_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "requested_by",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "approved_by",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "state",
+          "type": "approval_state",
+          "type_base": "approval_state",
+          "length": null,
+          "not_null": true,
+          "default": "'pending'",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "tenant_id"
+          ],
+          "ref_table": "tenant",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        },
+        {
+          "name": null,
+          "columns": [
+            "service_request_id"
+          ],
+          "ref_table": "service_request",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "NO ACTION",
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "cardinality": "1:N"
+        },
+        {
+          "name": null,
+          "columns": [
+            "deployment_id"
+          ],
+          "ref_table": "deployment",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "NO ACTION",
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "cardinality": "1:N"
+        },
+        {
+          "name": null,
+          "columns": [
+            "requested_by"
+          ],
+          "ref_table": "users",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "NO ACTION",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        },
+        {
+          "name": null,
+          "columns": [
+            "approved_by"
+          ],
+          "ref_table": "users",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "NO ACTION",
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": "idx_approval_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        },
+        {
+          "name": "idx_approval_requested_by",
+          "columns": [
+            "requested_by"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        }
+      ],
+      "rls_enabled": true,
+      "policies": [
+        "approval_request_tenant_isolation"
+      ],
+      "referenced_by": [],
+      "domain": "approvals",
+      "findings": [
+        "F008",
+        "F009",
+        "F010",
+        "F012",
+        "F026"
+      ],
+      "source_line": 182
+    },
+    "audit_event": {
+      "name": "audit_event",
+      "schema": "public",
+      "description": [
+        "Append-only audit trail. actor may be a user or a system job.",
+        "Append-only. Never UPDATE or DELETE rows here."
+      ],
+      "section": "PHASE 4 — Approvals & audit",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigserial",
+          "type_base": "bigserial",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "actor_type",
+          "type": "varchar(20)",
+          "type_base": "varchar",
+          "length": 20,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "user | system",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "actor_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "action",
+          "type": "varchar(100)",
+          "type_base": "varchar",
+          "length": 100,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "occurred_at",
+          "type": "timestamp",
+          "type_base": "timestamp",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "detail",
+          "type": "jsonb",
+          "type_base": "jsonb",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "tenant_id"
+          ],
+          "ref_table": "tenant",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "NO ACTION",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": "idx_audit_tenant_time",
+          "columns": [
+            "tenant_id",
+            "occurred_at"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        }
+      ],
+      "rls_enabled": true,
+      "policies": [
+        "audit_event_tenant_isolation"
+      ],
+      "referenced_by": [],
+      "domain": "approvals",
+      "findings": [
+        "F013",
+        "F023",
+        "F025",
+        "F028"
+      ],
+      "source_line": 198
+    },
+    "invoice_line": {
+      "name": "invoice_line",
+      "schema": "public",
+      "description": [],
+      "section": "PHASE 5 — Billing",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "amount",
+          "type": "double precision",
+          "type_base": "double precision",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "currency",
+          "type": "char(3)",
+          "type_base": "char",
+          "length": 3,
+          "not_null": true,
+          "default": "'CHF'",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "billed_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": true,
+          "default": "now()",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "tenant_id"
+          ],
+          "ref_table": "tenant",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "NO ACTION",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": "idx_invoice_line_tenant",
+          "columns": [
+            "tenant_id"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [],
+      "domain": "billing",
+      "findings": [
+        "F014",
+        "F029",
+        "F034"
+      ],
+      "source_line": 215
+    },
+    "legacy_import_staging": {
+      "name": "legacy_import_staging",
+      "schema": "public",
+      "description": [
+        "⚠ FLAW: orphan — nothing references it, it references nothing, and it is in",
+        "no domain in narratives.json."
+      ],
+      "section": "PHASE 5 — Billing",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigserial",
+          "type_base": "bigserial",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "raw_row",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "loaded",
+          "type": "boolean",
+          "type_base": "boolean",
+          "length": null,
+          "not_null": false,
+          "default": "FALSE",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [],
+      "domain": null,
+      "findings": [
+        "F001",
+        "F035"
+      ],
+      "source_line": 228
+    }
+  },
+  "findings": [
+    {
+      "id": "F016",
+      "check": "natural-key",
+      "severity": "error",
+      "table": "github_app_installation",
+      "columns": [
+        "tenant_id",
+        "installation_id"
+      ],
+      "title": "Asserted natural key is not enforced",
+      "detail": "`(tenant_id, installation_id)` is declared to identify a `github_app_installation` row, but nothing enforces it. Retries, double-submits and webhook redeliveries create duplicates.",
+      "suggestion": "Add a unique constraint (partial if the table is soft-deleted).",
+      "fix_sql": "ALTER TABLE github_app_installation ADD CONSTRAINT github_app_installation_tenant_id_installation_id_key UNIQUE (tenant_id, installation_id);"
+    },
+    {
+      "id": "F029",
+      "check": "money-float",
+      "severity": "error",
+      "table": "invoice_line",
+      "columns": [
+        "amount"
+      ],
+      "title": "Monetary value stored as float",
+      "detail": "`amount` is binary floating point. 0.1 + 0.2 ≠ 0.3; sums drift; reconciliation against the ledger will be off by cents.",
+      "suggestion": "Use NUMERIC(p, s) or integer minor units.",
+      "fix_sql": "ALTER TABLE invoice_line ALTER COLUMN amount TYPE numeric(14,2);"
+    },
+    {
+      "id": "F034",
+      "check": "rls-missing",
+      "severity": "error",
+      "table": "invoice_line",
+      "columns": [
+        "tenant_id"
+      ],
+      "title": "Tenant table without row-level security",
+      "detail": "`invoice_line` carries `tenant_id` but RLS is not enabled, so isolation depends entirely on every query remembering the WHERE clause. One forgotten filter is a cross-tenant leak.",
+      "suggestion": "Enable RLS and add the standard policy.",
+      "fix_sql": "ALTER TABLE invoice_line ENABLE ROW LEVEL SECURITY;\nCREATE POLICY invoice_line_tenant_isolation ON invoice_line USING (tenant_id = current_setting('app.tenant_id')::uuid);"
+    },
+    {
+      "id": "F001",
+      "check": "domain-coverage",
+      "severity": "error",
+      "table": "legacy_import_staging",
+      "columns": [],
+      "title": "Table is in no domain",
+      "detail": "Every table must be claimed by a domain in narratives.json, otherwise it silently falls out of the documentation and of any per-domain backup/retention policy.",
+      "suggestion": "Add it to the right domain's `tables` list, or delete the table if it is dead.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F015",
+      "check": "cardinality",
+      "severity": "error",
+      "table": "tenant_settings",
+      "columns": [
+        "tenant_id"
+      ],
+      "title": "Modelled 1:N but intended 1:1",
+      "detail": "The narrative says each `tenant` has exactly one `tenant_settings`, but `tenant_id` is not UNIQUE, so the database happily stores five. Application code that does `.single()` or `LIMIT 1` will return an arbitrary row.",
+      "suggestion": "Make the FK column(s) unique — or make it the primary key.",
+      "fix_sql": "ALTER TABLE tenant_settings ADD CONSTRAINT tenant_settings_tenant_id_key UNIQUE (tenant_id);"
+    },
+    {
+      "id": "F002",
+      "check": "primary-key",
+      "severity": "error",
+      "table": "user_role",
+      "columns": [],
+      "title": "No primary key",
+      "detail": "Without a primary key rows are not individually addressable: no safe UPDATE/DELETE of one row, no logical replication, ORMs misbehave, and duplicates are legal.",
+      "suggestion": "Add a natural composite key or a surrogate id.",
+      "fix_sql": "ALTER TABLE user_role ADD PRIMARY KEY (...);"
+    },
+    {
+      "id": "F018",
+      "check": "junction-uniqueness",
+      "severity": "error",
+      "table": "user_role",
+      "columns": [
+        "role_id",
+        "user_id"
+      ],
+      "title": "Junction table allows duplicate links",
+      "detail": "`user_role` looks like a many-to-many link table but has no unique constraint across (role_id, user_id). The same pair can be inserted twice; every join through it will double-count.",
+      "suggestion": "Use the FK pair as the primary key (or add a UNIQUE).",
+      "fix_sql": "ALTER TABLE user_role ADD PRIMARY KEY (role_id, user_id);"
+    },
+    {
+      "id": "F017",
+      "check": "natural-key",
+      "severity": "error",
+      "table": "webhook_delivery",
+      "columns": [
+        "delivery_guid"
+      ],
+      "title": "Asserted natural key is not enforced",
+      "detail": "`(delivery_guid)` is declared to identify a `webhook_delivery` row, but nothing enforces it. Retries, double-submits and webhook redeliveries create duplicates.",
+      "suggestion": "Add a unique constraint (partial if the table is soft-deleted).",
+      "fix_sql": "ALTER TABLE webhook_delivery ADD CONSTRAINT webhook_delivery_delivery_guid_key UNIQUE (delivery_guid);"
+    },
+    {
+      "id": "F008",
+      "check": "fk-index",
+      "severity": "warn",
+      "table": "approval_request",
+      "columns": [
+        "service_request_id"
+      ],
+      "title": "Foreign key without index",
+      "detail": "PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `service_request` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan.",
+      "suggestion": "Add an index on the FK column(s).",
+      "fix_sql": "CREATE INDEX CONCURRENTLY idx_approval_request_service_request_id ON approval_request(service_request_id);"
+    },
+    {
+      "id": "F009",
+      "check": "fk-index",
+      "severity": "warn",
+      "table": "approval_request",
+      "columns": [
+        "deployment_id"
+      ],
+      "title": "Foreign key without index",
+      "detail": "PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `deployment` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan.",
+      "suggestion": "Add an index on the FK column(s).",
+      "fix_sql": "CREATE INDEX CONCURRENTLY idx_approval_request_deployment_id ON approval_request(deployment_id);"
+    },
+    {
+      "id": "F010",
+      "check": "fk-index",
+      "severity": "warn",
+      "table": "approval_request",
+      "columns": [
+        "approved_by"
+      ],
+      "title": "Foreign key without index",
+      "detail": "PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan.",
+      "suggestion": "Add an index on the FK column(s).",
+      "fix_sql": "CREATE INDEX CONCURRENTLY idx_approval_request_approved_by ON approval_request(approved_by);"
+    },
+    {
+      "id": "F026",
+      "check": "exclusive-arc",
+      "severity": "warn",
+      "table": "approval_request",
+      "columns": [
+        "service_request_id",
+        "deployment_id"
+      ],
+      "title": "Either/or foreign keys without a CHECK",
+      "detail": "`approval_request` has several nullable FKs (service_request_id, deployment_id) that look like an exclusive arc — a row should point at exactly one of them. Nothing stops zero or both.",
+      "suggestion": "Add a CHECK that exactly one is non-null, or restructure with a supertype.",
+      "fix_sql": "ALTER TABLE approval_request ADD CONSTRAINT approval_request_one_target CHECK ((service_request_id IS NOT NULL)::int + (deployment_id IS NOT NULL)::int = 1);"
+    },
+    {
+      "id": "F023",
+      "check": "undocumented-enum",
+      "severity": "warn",
+      "table": "audit_event",
+      "columns": [
+        "actor_type"
+      ],
+      "title": "Enum-like column with no CHECK",
+      "detail": "`actor_type` is a short string that clearly takes a fixed set of values, but the database accepts anything. Typos become new states, and nobody can list the legal values without reading application code. The comment lists `user | system`, i.e. the values are known.",
+      "suggestion": "Add a CHECK constraint (cheap, easy to evolve) or a lookup table if values need metadata. Avoid native ENUM types unless the set is truly frozen.",
+      "fix_sql": "ALTER TABLE audit_event ADD CONSTRAINT audit_event_actor_type_check CHECK (actor_type IN (...));"
+    },
+    {
+      "id": "F025",
+      "check": "polymorphic-reference",
+      "severity": "warn",
+      "table": "audit_event",
+      "columns": [
+        "actor_type",
+        "actor_id"
+      ],
+      "title": "Polymorphic reference without referential integrity",
+      "detail": "`actor_id` points at different tables depending on `actor_type`. No FK can express that, so orphans accumulate silently and every join needs a CASE. Acceptable for append-only audit data; painful anywhere the target must still exist.",
+      "suggestion": "Either one nullable FK per target with a CHECK that exactly one is set, or a supertype table that the targets reference.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F006",
+      "check": "fk-index",
+      "severity": "warn",
+      "table": "github_app_config",
+      "columns": [
+        "created_by"
+      ],
+      "title": "Foreign key without index",
+      "detail": "PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `github_app_config` to check the constraint, and every join from the parent side is a sequential scan.",
+      "suggestion": "Add an index on the FK column(s).",
+      "fix_sql": "CREATE INDEX CONCURRENTLY idx_github_app_config_created_by ON github_app_config(created_by);"
+    },
+    {
+      "id": "F020",
+      "check": "undocumented-enum",
+      "severity": "warn",
+      "table": "github_app_config",
+      "columns": [
+        "status"
+      ],
+      "title": "Enum-like column with no CHECK",
+      "detail": "`status` is a short string that clearly takes a fixed set of values, but the database accepts anything. Typos become new states, and nobody can list the legal values without reading application code.",
+      "suggestion": "Add a CHECK constraint (cheap, easy to evolve) or a lookup table if values need metadata. Avoid native ENUM types unless the set is truly frozen.",
+      "fix_sql": "ALTER TABLE github_app_config ADD CONSTRAINT github_app_config_status_check CHECK (status IN (...));"
+    },
+    {
+      "id": "F021",
+      "check": "undocumented-enum",
+      "severity": "warn",
+      "table": "github_app_installation",
+      "columns": [
+        "target_type"
+      ],
+      "title": "Enum-like column with no CHECK",
+      "detail": "`target_type` is a short string that clearly takes a fixed set of values, but the database accepts anything. Typos become new states, and nobody can list the legal values without reading application code. The comment lists `Organization | User`, i.e. the values are known.",
+      "suggestion": "Add a CHECK constraint (cheap, easy to evolve) or a lookup table if values need metadata. Avoid native ENUM types unless the set is truly frozen.",
+      "fix_sql": "ALTER TABLE github_app_installation ADD CONSTRAINT github_app_installation_target_type_check CHECK (target_type IN (...));"
+    },
+    {
+      "id": "F022",
+      "check": "undocumented-enum",
+      "severity": "warn",
+      "table": "github_app_installation",
+      "columns": [
+        "repository_selection"
+      ],
+      "title": "Enum-like column with no CHECK",
+      "detail": "`repository_selection` is a short string that clearly takes a fixed set of values, but the database accepts anything. Typos become new states, and nobody can list the legal values without reading application code. The comment lists `all | selected`, i.e. the values are known.",
+      "suggestion": "Add a CHECK constraint (cheap, easy to evolve) or a lookup table if values need metadata. Avoid native ENUM types unless the set is truly frozen.",
+      "fix_sql": "ALTER TABLE github_app_installation ADD CONSTRAINT github_app_installation_repository_selection_check CHECK (repository_selection IN (...));"
+    },
+    {
+      "id": "F003",
+      "check": "fk-index",
+      "severity": "warn",
+      "table": "sessions",
+      "columns": [
+        "user_id"
+      ],
+      "title": "Foreign key without index",
+      "detail": "PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `sessions` to check the constraint, and every join from the parent side is a sequential scan.",
+      "suggestion": "Add an index on the FK column(s).",
+      "fix_sql": "CREATE INDEX CONCURRENTLY idx_sessions_user_id ON sessions(user_id);"
+    },
+    {
+      "id": "F030",
+      "check": "tenant-derivable",
+      "severity": "warn",
+      "table": "sessions",
+      "columns": [],
+      "title": "No `tenant_id`; tenant only reachable via 2 join(s)",
+      "detail": "`sessions` belongs to a tenant only transitively (sessions → users → tenant). Row-level security, per-tenant export/erasure, and per-tenant sharding all need that join. It works at 10 tenants and hurts at 1,000.",
+      "suggestion": "Denormalise `tenant_id` onto the table (with a composite FK to keep it consistent), or accept the join and write the RLS policy as a subquery now, while it is cheap.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F019",
+      "check": "undocumented-enum",
+      "severity": "warn",
+      "table": "tenant",
+      "columns": [
+        "status"
+      ],
+      "title": "Enum-like column with no CHECK",
+      "detail": "`status` is a short string that clearly takes a fixed set of values, but the database accepts anything. Typos become new states, and nobody can list the legal values without reading application code.",
+      "suggestion": "Add a CHECK constraint (cheap, easy to evolve) or a lookup table if values need metadata. Avoid native ENUM types unless the set is truly frozen.",
+      "fix_sql": "ALTER TABLE tenant ADD CONSTRAINT tenant_status_check CHECK (status IN (...));"
+    },
+    {
+      "id": "F004",
+      "check": "fk-index",
+      "severity": "warn",
+      "table": "user_role",
+      "columns": [
+        "user_id"
+      ],
+      "title": "Foreign key without index",
+      "detail": "PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `user_role` to check the constraint, and every join from the parent side is a sequential scan.",
+      "suggestion": "Add an index on the FK column(s).",
+      "fix_sql": "CREATE INDEX CONCURRENTLY idx_user_role_user_id ON user_role(user_id);"
+    },
+    {
+      "id": "F005",
+      "check": "fk-index",
+      "severity": "warn",
+      "table": "user_role",
+      "columns": [
+        "role_id"
+      ],
+      "title": "Foreign key without index",
+      "detail": "PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `role` must scan `user_role` to check the constraint, and every join from the parent side is a sequential scan.",
+      "suggestion": "Add an index on the FK column(s).",
+      "fix_sql": "CREATE INDEX CONCURRENTLY idx_user_role_role_id ON user_role(role_id);"
+    },
+    {
+      "id": "F024",
+      "check": "soft-delete-unique",
+      "severity": "warn",
+      "table": "users",
+      "columns": [
+        "email"
+      ],
+      "title": "Soft delete collides with non-partial UNIQUE",
+      "detail": "`users` soft-deletes via `deleted_at`, but `(email)` is unique across live AND deleted rows. A user who deletes their account can never sign up again with the same value, and `ON CONFLICT` upserts will resurrect ghosts.",
+      "suggestion": "Replace with a partial unique index scoped to live rows.",
+      "fix_sql": "DROP CONSTRAINT/INDEX ...; CREATE UNIQUE INDEX users_email_live ON users(email) WHERE deleted_at IS NULL;"
+    },
+    {
+      "id": "F007",
+      "check": "fk-index",
+      "severity": "warn",
+      "table": "webhook_delivery",
+      "columns": [
+        "installation_id"
+      ],
+      "title": "Foreign key without index",
+      "detail": "PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `github_app_installation` must scan `webhook_delivery` to check the constraint, and every join from the parent side is a sequential scan.",
+      "suggestion": "Add an index on the FK column(s).",
+      "fix_sql": "CREATE INDEX CONCURRENTLY idx_webhook_delivery_installation_id ON webhook_delivery(installation_id);"
+    },
+    {
+      "id": "F033",
+      "check": "tenant-derivable",
+      "severity": "warn",
+      "table": "webhook_delivery",
+      "columns": [],
+      "title": "No `tenant_id`; tenant only reachable via 2 join(s)",
+      "detail": "`webhook_delivery` belongs to a tenant only transitively (webhook_delivery → github_app_installation → tenant). Row-level security, per-tenant export/erasure, and per-tenant sharding all need that join. It works at 10 tenants and hurts at 1,000.",
+      "suggestion": "Denormalise `tenant_id` onto the table (with a composite FK to keep it consistent), or accept the join and write the RLS policy as a subquery now, while it is cheap.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F012",
+      "check": "fk-nullable",
+      "severity": "info",
+      "table": "approval_request",
+      "columns": [
+        "approved_by"
+      ],
+      "title": "Nullable foreign key",
+      "detail": "`approval_request.approved_by` may be NULL, so the relationship to `users` is optional. That is legitimate (e.g. approved_by before approval) but often a modelling shrug: a row with no owner, or two nullable FKs that are secretly an either/or.",
+      "suggestion": "Confirm the optionality is a domain rule; document it in the column comment.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F013",
+      "check": "fk-on-delete",
+      "severity": "info",
+      "table": "audit_event",
+      "columns": [
+        "tenant_id"
+      ],
+      "title": "Tenant FK relies on the default ON DELETE NO ACTION",
+      "detail": "Deleting a `tenant` row will fail while `audit_event` rows exist. Fine if tenants are never hard-deleted; a surprise the day offboarding/GDPR erasure is built.",
+      "suggestion": "State the intent explicitly: CASCADE, RESTRICT, or an offboarding job.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F028",
+      "check": "timestamp-tz",
+      "severity": "info",
+      "table": "audit_event",
+      "columns": [
+        "occurred_at"
+      ],
+      "title": "TIMESTAMP without time zone",
+      "detail": "`occurred_at` stores wall-clock time with no zone. It reads back differently depending on the session's TimeZone, and DST transitions produce ambiguous values.",
+      "suggestion": "Use TIMESTAMPTZ.",
+      "fix_sql": "ALTER TABLE audit_event ALTER COLUMN occurred_at TYPE timestamptz;"
+    },
+    {
+      "id": "F011",
+      "check": "fk-nullable",
+      "severity": "info",
+      "table": "github_app_config",
+      "columns": [
+        "created_by"
+      ],
+      "title": "Nullable foreign key",
+      "detail": "`github_app_config.created_by` may be NULL, so the relationship to `users` is optional. That is legitimate (e.g. approved_by before approval) but often a modelling shrug: a row with no owner, or two nullable FKs that are secretly an either/or.",
+      "suggestion": "Confirm the optionality is a domain rule; document it in the column comment.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F036",
+      "check": "singleton-table",
+      "severity": "info",
+      "table": "github_app_config",
+      "columns": [],
+      "title": "Single-row configuration table",
+      "detail": "`github_app_config` is documented as holding exactly one row. Nothing enforces that (no unique constraint besides the PK), and the day a second instance is needed (a second GitHub App, a staging vs prod config) every reader that does `SELECT * ... LIMIT 1` becomes wrong.",
+      "suggestion": "Either enforce one row (CHECK on a constant column with a UNIQUE) or give it a discriminator now (`provider_id`, `environment`) while there is only one row to backfill.",
+      "fix_sql": "ALTER TABLE github_app_config ADD COLUMN singleton boolean NOT NULL DEFAULT true CHECK (singleton);\nCREATE UNIQUE INDEX github_app_config_one_row ON github_app_config(singleton);"
+    },
+    {
+      "id": "F014",
+      "check": "fk-on-delete",
+      "severity": "info",
+      "table": "invoice_line",
+      "columns": [
+        "tenant_id"
+      ],
+      "title": "Tenant FK relies on the default ON DELETE NO ACTION",
+      "detail": "Deleting a `tenant` row will fail while `invoice_line` rows exist. Fine if tenants are never hard-deleted; a surprise the day offboarding/GDPR erasure is built.",
+      "suggestion": "State the intent explicitly: CASCADE, RESTRICT, or an offboarding job.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F035",
+      "check": "orphan-table",
+      "severity": "info",
+      "table": "legacy_import_staging",
+      "columns": [],
+      "title": "Isolated table",
+      "detail": "`legacy_import_staging` references nothing and nothing references it. Either it is a staging/log table (fine, say so), or it is dead, or it is the seed of a second data model growing beside the first.",
+      "suggestion": "Document its purpose or drop it.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F031",
+      "check": "tenant-derivable",
+      "severity": "info",
+      "table": "role_permission",
+      "columns": [],
+      "title": "No `tenant_id`; tenant only reachable via 2 join(s)",
+      "detail": "`role_permission` belongs to a tenant only transitively (role_permission → role → tenant). Row-level security, per-tenant export/erasure, and per-tenant sharding all need that join. It works at 10 tenants and hurts at 1,000.",
+      "suggestion": "Denormalise `tenant_id` onto the table (with a composite FK to keep it consistent), or accept the join and write the RLS policy as a subquery now, while it is cheap.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F027",
+      "check": "timestamp-tz",
+      "severity": "info",
+      "table": "sessions",
+      "columns": [
+        "expires_at"
+      ],
+      "title": "TIMESTAMP without time zone",
+      "detail": "`expires_at` stores wall-clock time with no zone. It reads back differently depending on the session's TimeZone, and DST transitions produce ambiguous values.",
+      "suggestion": "Use TIMESTAMPTZ.",
+      "fix_sql": "ALTER TABLE sessions ALTER COLUMN expires_at TYPE timestamptz;"
+    },
+    {
+      "id": "F037",
+      "check": "blast-radius",
+      "severity": "info",
+      "table": "tenant",
+      "columns": [],
+      "title": "Hub table: referenced by 10 tables",
+      "detail": "Any change to its key, its delete semantics, or its partitioning touches every dependent. Migrations on hub tables need the longest lock windows and the most careful rollout.",
+      "suggestion": "Treat schema changes here as breaking changes with a written rollout plan.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F032",
+      "check": "tenant-derivable",
+      "severity": "info",
+      "table": "user_role",
+      "columns": [],
+      "title": "No `tenant_id`; tenant only reachable via 2 join(s)",
+      "detail": "`user_role` belongs to a tenant only transitively (user_role → users → tenant). Row-level security, per-tenant export/erasure, and per-tenant sharding all need that join. It works at 10 tenants and hurts at 1,000.",
+      "suggestion": "Denormalise `tenant_id` onto the table (with a composite FK to keep it consistent), or accept the join and write the RLS policy as a subquery now, while it is cheap.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F038",
+      "check": "blast-radius",
+      "severity": "info",
+      "table": "users",
+      "columns": [],
+      "title": "Hub table: referenced by 5 tables",
+      "detail": "Any change to its key, its delete semantics, or its partitioning touches every dependent. Migrations on hub tables need the longest lock windows and the most careful rollout.",
+      "suggestion": "Treat schema changes here as breaking changes with a written rollout plan.",
+      "fix_sql": ""
+    }
+  ]
+}

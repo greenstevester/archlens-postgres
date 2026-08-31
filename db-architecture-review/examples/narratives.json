@@ -1,0 +1,77 @@
+{
+  "database": {
+    "title": "Portal database",
+    "blurb": "Multi-tenant self-service portal. Provider → Tenant hierarchy; every tenant-scoped table carries tenant_id and is protected by row-level security."
+  },
+  "conventions": [
+    "Primary keys are UUID v4 (gen_random_uuid()) except append-only logs, which use BIGSERIAL.",
+    "Every tenant-scoped table has a tenant_id column and an RLS policy keyed on app.tenant_id.",
+    "Timestamps are TIMESTAMPTZ.",
+    "Enum-like columns carry a CHECK constraint or use a PostgreSQL ENUM type.",
+    "Soft delete uses deleted_at; uniqueness on soft-deleted tables must be partial (WHERE deleted_at IS NULL)."
+  ],
+  "domains": [
+    {
+      "key": "tenant",
+      "title": "Multi-tenancy",
+      "blurb": "The Provider → Tenant hierarchy every other table hangs off, with per-tenant settings and auth configuration. Each tenant has exactly one settings row and at most one auth config.",
+      "tenant_scoped": false,
+      "tables": ["provider", "tenant", "tenant_settings", "tenant_auth_config"]
+    },
+    {
+      "key": "auth",
+      "title": "Authentication & identity",
+      "blurb": "Who can log in and how: users and their sessions.",
+      "tenant_scoped": true,
+      "tables": ["users", "sessions"]
+    },
+    {
+      "key": "permission",
+      "title": "Permissions (RBAC)",
+      "blurb": "Roles per tenant, the global permission catalogue, and the two junction tables that tie users → roles → permissions.",
+      "tenant_scoped": true,
+      "tables": ["role", "permission", "role_permission", "user_role"]
+    },
+    {
+      "key": "github",
+      "title": "GitHub integration",
+      "blurb": "One provider-level GitHub App serves the whole portal; tenants map to it via installations, and webhook deliveries are stored raw per installation.",
+      "tenant_scoped": true,
+      "tables": ["github_app_config", "github_app_installation", "webhook_delivery"]
+    },
+    {
+      "key": "approvals",
+      "title": "Approvals & audit",
+      "blurb": "Service requests and deployments that need sign-off, and the append-only audit trail.",
+      "tenant_scoped": true,
+      "tables": ["service_request", "deployment", "approval_request", "audit_event"]
+    },
+    {
+      "key": "billing",
+      "title": "Billing",
+      "blurb": "Invoice lines per tenant.",
+      "tenant_scoped": true,
+      "tables": ["invoice_line"]
+    }
+  ],
+  "assertions": {
+    "tenant_table": "tenant",
+    "tenant_column": "tenant_id",
+    "require_rls": true,
+    "global_tables": ["provider", "permission", "github_app_config"],
+    "singleton_tables": ["github_app_config"],
+    "cardinality": [
+      { "parent": "tenant", "child": "tenant_settings", "expect": "1:1" },
+      { "parent": "tenant", "child": "tenant_auth_config", "expect": "1:1" },
+      { "parent": "tenant", "child": "users", "expect": "1:N" },
+      { "parent": "github_app_installation", "child": "webhook_delivery", "expect": "1:N" }
+    ],
+    "natural_keys": [
+      { "table": "github_app_installation", "columns": ["tenant_id", "installation_id"] },
+      { "table": "webhook_delivery", "columns": ["delivery_guid"] }
+    ],
+    "exclusive_arcs": [
+      { "table": "approval_request", "columns": ["service_request_id", "deployment_id"] }
+    ]
+  }
+}
