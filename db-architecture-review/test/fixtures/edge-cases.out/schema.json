@@ -1,0 +1,1946 @@
+{
+  "generated_at": "2026-08-31T13:20:34+00:00",
+  "source": "test/fixtures/edge-cases.sql",
+  "stats": {
+    "tables": 8,
+    "columns": 68,
+    "foreign_keys": 9,
+    "domains": 2,
+    "findings": {
+      "error": 9,
+      "warn": 8,
+      "info": 8
+    }
+  },
+  "database": {
+    "title": "Edge cases",
+    "blurb": "Every construct the sample schema lacks, so the port is exercised on real parser output."
+  },
+  "conventions": [
+    "The tenant column is org_id."
+  ],
+  "domains": [
+    {
+      "key": "core",
+      "title": "Core",
+      "blurb": "Organisations, and a table the narrative still lists but the schema dropped.",
+      "tenant_scoped": false,
+      "tables": [
+        "org",
+        "ghost_table"
+      ]
+    },
+    {
+      "key": "work",
+      "title": "Work",
+      "blurb": "Everything an organisation owns. Each org has exactly one profile; the assertion below deliberately says otherwise.",
+      "tenant_scoped": true,
+      "tables": [
+        "widget",
+        "attachment",
+        "ticket",
+        "profile",
+        "region",
+        "site",
+        "scratch"
+      ]
+    }
+  ],
+  "assertions": {
+    "tenant_table": "org",
+    "tenant_column": "org_id",
+    "require_rls": true,
+    "global_tables": [],
+    "singleton_tables": [
+      "profile"
+    ],
+    "cardinality": [
+      {
+        "parent": "org",
+        "child": "profile",
+        "expect": "1:N"
+      },
+      {
+        "parent": "org",
+        "child": "scratch",
+        "expect": "1:1"
+      }
+    ],
+    "natural_keys": [
+      {
+        "table": "site",
+        "columns": [
+          "org_id",
+          "region"
+        ]
+      }
+    ],
+    "exclusive_arcs": [
+      {
+        "table": "attachment",
+        "columns": [
+          "widget_id",
+          "ticket_id"
+        ]
+      }
+    ]
+  },
+  "extras": {
+    "extensions": [],
+    "enums": {
+      "mood": [
+        "happy",
+        "sad"
+      ]
+    },
+    "unparsed": [
+      "CreateSchemaStmt",
+      "ViewStmt",
+      "CreateFunctionStmt",
+      "CreateTrigStmt",
+      "index on unknown table missing_table",
+      "ALTER on unknown table missing_table"
+    ]
+  },
+  "tables": {
+    "org": {
+      "name": "org",
+      "schema": "public",
+      "description": [],
+      "section": "PHASE 1 — Core",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigserial",
+          "type_base": "bigserial",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "kind",
+          "type": "varchar(10)",
+          "type_base": "varchar",
+          "length": 10,
+          "not_null": true,
+          "default": "'std'",
+          "check": "kind IN ('std', 'pro')",
+          "comment": "CHECK present: no enum finding",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "fee",
+          "type": "real",
+          "type_base": "real",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "money as float (REAL branch)",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "weight",
+          "type": "numeric(14, 2)",
+          "type_base": "numeric",
+          "length": null,
+          "not_null": true,
+          "default": "0",
+          "check": null,
+          "comment": "zero default is omitted from the tree",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "tags",
+          "type": "text[]",
+          "type_base": "text",
+          "length": null,
+          "not_null": true,
+          "default": "ARRAY['a', 'b']",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "settings",
+          "type": "jsonb",
+          "type_base": "jsonb",
+          "length": null,
+          "not_null": true,
+          "default": "CAST('{}' AS jsonb)",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp(3)",
+          "type_base": "timestamp",
+          "length": null,
+          "not_null": true,
+          "default": "CURRENT_TIMESTAMP",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "score",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": true,
+          "default": "-1",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "ratio",
+          "type": "double precision",
+          "type_base": "double precision",
+          "length": null,
+          "not_null": false,
+          "default": "1.5",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "active",
+          "type": "boolean",
+          "type_base": "boolean",
+          "length": null,
+          "not_null": true,
+          "default": "TRUE",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "note",
+          "type": "char(2)",
+          "type_base": "char",
+          "length": 2,
+          "not_null": false,
+          "default": "NULL",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "seq_no",
+          "type": "smallint",
+          "type_base": "smallint",
+          "length": null,
+          "not_null": true,
+          "default": "nextval('org_seq')",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "feeling",
+          "type": "mood",
+          "type_base": "mood",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": true
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [
+        "(tags)[1] <> ''",
+        "…(name, kind) IS DISTINCT FROM …"
+      ],
+      "fks": [],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [
+        {
+          "table": "widget",
+          "columns": [
+            "org_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "attachment",
+          "columns": [
+            "org_id"
+          ],
+          "on_delete": "NO ACTION",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "ticket",
+          "columns": [
+            "org_id"
+          ],
+          "on_delete": "RESTRICT",
+          "cardinality": "1:N"
+        },
+        {
+          "table": "profile",
+          "columns": [
+            "org_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:1"
+        },
+        {
+          "table": "region",
+          "columns": [
+            "org_id"
+          ],
+          "on_delete": "NO ACTION",
+          "cardinality": "1:N"
+        }
+      ],
+      "domain": "core",
+      "findings": [
+        "F014",
+        "F015",
+        "F024"
+      ],
+      "source_line": 17
+    },
+    "widget": {
+      "name": "widget",
+      "schema": "app",
+      "description": [
+        "Schema-qualified, thirty columns wide, RLS enabled with no policy.",
+        "Schema-qualified table."
+      ],
+      "section": "PHASE 2 — Work",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "org_id",
+          "type": "bigint",
+          "type_base": "bigint",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "c01",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c02",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c03",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c04",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c05",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c06",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c07",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c08",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c09",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c10",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c11",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c12",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c13",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c14",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c15",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c16",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c17",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c18",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c19",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c20",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c21",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c22",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c23",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c24",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c25",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c26",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "c27",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "extra",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "org_id"
+          ],
+          "ref_table": "org",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": "idx_widget_org",
+          "columns": [
+            "org_id"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        }
+      ],
+      "rls_enabled": true,
+      "policies": [],
+      "referenced_by": [
+        {
+          "table": "attachment",
+          "columns": [
+            "widget_id"
+          ],
+          "on_delete": "NO ACTION",
+          "cardinality": "1:N"
+        }
+      ],
+      "domain": "work",
+      "findings": [
+        "F017",
+        "F025"
+      ],
+      "source_line": 41
+    },
+    "attachment": {
+      "name": "attachment",
+      "schema": "public",
+      "description": [
+        "Either/or foreign keys guarded by a CHECK: the exclusive-arc check must stay quiet."
+      ],
+      "section": "PHASE 2 — Work",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "org_id",
+          "type": "bigint",
+          "type_base": "bigint",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "widget_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "ticket_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [
+        "(CAST(widget_id IS NOT NULL AS integer) + CAST(ticket_id IS NOT NULL AS integer)) = 1"
+      ],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "org_id"
+          ],
+          "ref_table": "org",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "NO ACTION",
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "cardinality": "1:N"
+        },
+        {
+          "name": null,
+          "columns": [
+            "widget_id"
+          ],
+          "ref_table": "widget",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "NO ACTION",
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "cardinality": "1:N"
+        },
+        {
+          "name": null,
+          "columns": [
+            "ticket_id"
+          ],
+          "ref_table": "ticket",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "NO ACTION",
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [],
+      "domain": "work",
+      "findings": [
+        "F002",
+        "F003",
+        "F004",
+        "F008",
+        "F018"
+      ],
+      "source_line": 57
+    },
+    "ticket": {
+      "name": "ticket",
+      "schema": "public",
+      "description": [
+        "Soft delete done right (partial unique), an expression index, CHECKs of every shape."
+      ],
+      "section": "PHASE 2 — Work",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "org_id",
+          "type": "bigint",
+          "type_base": "bigint",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "state",
+          "type": "varchar(12)",
+          "type_base": "varchar",
+          "length": 12,
+          "not_null": true,
+          "default": "'open'",
+          "check": null,
+          "comment": "open | closed   (enum-ish, no CHECK)",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "priority",
+          "type": "smallint",
+          "type_base": "smallint",
+          "length": null,
+          "not_null": true,
+          "default": "0",
+          "check": "priority BETWEEN 0 AND 5",
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "label",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": "label IS NULL OR (label <> '' AND NOT label LIKE 'tmp%')",
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "assignee",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": "CASE WHEN state = 'closed' THEN assignee IS NOT NULL ELSE TRUE END",
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "alt_email",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": false,
+          "default": "COALESCE(NULL, 'none@example.com')",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "timestamptz",
+          "type_base": "timestamptz",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "org_id"
+          ],
+          "ref_table": "org",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "RESTRICT",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": "ticket_email_live",
+          "columns": [
+            "email"
+          ],
+          "unique": true,
+          "where": "deleted_at IS NULL",
+          "source": "index"
+        },
+        {
+          "name": "ticket_email_lower",
+          "columns": [
+            "lower(email)"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        },
+        {
+          "name": "ticket_org",
+          "columns": [
+            "org_id"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        }
+      ],
+      "rls_enabled": true,
+      "policies": [
+        "ticket_isolation"
+      ],
+      "referenced_by": [
+        {
+          "table": "attachment",
+          "columns": [
+            "ticket_id"
+          ],
+          "on_delete": "NO ACTION",
+          "cardinality": "1:N"
+        }
+      ],
+      "domain": "work",
+      "findings": [
+        "F013"
+      ],
+      "source_line": 66
+    },
+    "profile": {
+      "name": "profile",
+      "schema": "public",
+      "description": [
+        "One profile per org, enforced by UNIQUE; the narrative wrongly claims many."
+      ],
+      "section": "PHASE 2 — Work",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "org_id",
+          "type": "bigint",
+          "type_base": "bigint",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": true,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "bio",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "org_id"
+        ]
+      ],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "org_id"
+          ],
+          "ref_table": "org",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": true,
+          "indexed": true,
+          "cardinality": "1:1"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": null,
+          "columns": [
+            "org_id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "unique-constraint"
+        }
+      ],
+      "rls_enabled": true,
+      "policies": [
+        "profile_isolation"
+      ],
+      "referenced_by": [],
+      "domain": "work",
+      "findings": [
+        "F010",
+        "F022"
+      ],
+      "source_line": 84
+    },
+    "region": {
+      "name": "region",
+      "schema": "public",
+      "description": [
+        "Composite primary key, multi-column foreign key, and a two-table foreign-key cycle."
+      ],
+      "section": "PHASE 2 — Work",
+      "columns": [
+        {
+          "name": "org_id",
+          "type": "bigint",
+          "type_base": "bigint",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "code",
+          "type": "char(3)",
+          "type_base": "char",
+          "length": 3,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "lead_id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "org_id",
+        "code"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "org_id"
+          ],
+          "ref_table": "org",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "NO ACTION",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        },
+        {
+          "name": "region_lead_fk",
+          "columns": [
+            "lead_id"
+          ],
+          "ref_table": "site",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "SET DEFAULT",
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "org_id",
+            "code"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [
+        {
+          "table": "site",
+          "columns": [
+            "org_id",
+            "region"
+          ],
+          "on_delete": "SET NULL",
+          "cardinality": "1:N"
+        }
+      ],
+      "domain": "work",
+      "findings": [
+        "F005",
+        "F007",
+        "F009",
+        "F019",
+        "F023"
+      ],
+      "source_line": 93
+    },
+    "site": {
+      "name": "site",
+      "schema": "public",
+      "description": [],
+      "section": "PHASE 2 — Work",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "org_id",
+          "type": "bigint",
+          "type_base": "bigint",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "region",
+          "type": "char(3)",
+          "type_base": "char",
+          "length": 3,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [
+        {
+          "name": "site_region_fk",
+          "columns": [
+            "org_id",
+            "region"
+          ],
+          "ref_table": "region",
+          "ref_columns": [
+            "org_id",
+            "code"
+          ],
+          "on_delete": "SET NULL",
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [
+        {
+          "table": "region",
+          "columns": [
+            "lead_id"
+          ],
+          "on_delete": "SET DEFAULT",
+          "cardinality": "1:N"
+        }
+      ],
+      "domain": "work",
+      "findings": [
+        "F006",
+        "F012",
+        "F020"
+      ],
+      "source_line": 99
+    },
+    "scratch": {
+      "name": "scratch",
+      "schema": "public",
+      "description": [
+        "Claimed by a tenant-scoped domain, but no org_id and no path to org."
+      ],
+      "section": "PHASE 2 — Work",
+      "columns": [
+        {
+          "name": "id",
+          "type": "serial",
+          "type_base": "serial",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "body",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": false,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [],
+      "fks": [],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [],
+      "domain": "work",
+      "findings": [
+        "F011",
+        "F016",
+        "F021"
+      ],
+      "source_line": 108
+    }
+  },
+  "findings": [
+    {
+      "id": "F018",
+      "check": "rls-missing",
+      "severity": "error",
+      "table": "attachment",
+      "columns": [
+        "org_id"
+      ],
+      "title": "Tenant table without row-level security",
+      "detail": "`attachment` carries `org_id` but RLS is not enabled, so isolation depends entirely on every query remembering the WHERE clause. One forgotten filter is a cross-tenant leak.",
+      "suggestion": "Enable RLS and add the standard policy.",
+      "fix_sql": "ALTER TABLE attachment ENABLE ROW LEVEL SECURITY;\nCREATE POLICY attachment_tenant_isolation ON attachment USING (org_id = current_setting('app.tenant_id')::uuid);"
+    },
+    {
+      "id": "F001",
+      "check": "domain-coverage",
+      "severity": "error",
+      "table": "ghost_table",
+      "columns": [],
+      "title": "Domain lists a table that does not exist",
+      "detail": "Domain `core` claims `ghost_table` but the schema has no such table — likely a rename that never reached the narratives.",
+      "suggestion": "Fix or remove the entry.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F015",
+      "check": "money-float",
+      "severity": "error",
+      "table": "org",
+      "columns": [
+        "fee"
+      ],
+      "title": "Monetary value stored as float",
+      "detail": "`fee` is binary floating point. 0.1 + 0.2 ≠ 0.3; sums drift; reconciliation against the ledger will be off by cents.",
+      "suggestion": "Use NUMERIC(p, s) or integer minor units.",
+      "fix_sql": "ALTER TABLE org ALTER COLUMN fee TYPE numeric(14,2);"
+    },
+    {
+      "id": "F019",
+      "check": "rls-missing",
+      "severity": "error",
+      "table": "region",
+      "columns": [
+        "org_id"
+      ],
+      "title": "Tenant table without row-level security",
+      "detail": "`region` carries `org_id` but RLS is not enabled, so isolation depends entirely on every query remembering the WHERE clause. One forgotten filter is a cross-tenant leak.",
+      "suggestion": "Enable RLS and add the standard policy.",
+      "fix_sql": "ALTER TABLE region ENABLE ROW LEVEL SECURITY;\nCREATE POLICY region_tenant_isolation ON region USING (org_id = current_setting('app.tenant_id')::uuid);"
+    },
+    {
+      "id": "F011",
+      "check": "cardinality",
+      "severity": "error",
+      "table": "scratch",
+      "columns": [],
+      "title": "Asserted relationship has no foreign key",
+      "detail": "narratives.json says `org` → `scratch` is 1:1, but there is no FK from the child to the parent. The relationship exists only in application code.",
+      "suggestion": "Add the FK, or correct the narrative.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F016",
+      "check": "tenant-unscoped",
+      "severity": "error",
+      "table": "scratch",
+      "columns": [],
+      "title": "Tenant-scoped domain but no path to the tenant",
+      "detail": "`scratch` sits in a tenant-scoped domain yet neither has `org_id` nor references anything that leads to it. Its rows cannot be attributed to a tenant at all.",
+      "suggestion": "Add `org_id` (NOT NULL, FK) or move the table to a global domain in narratives.json.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F012",
+      "check": "natural-key",
+      "severity": "error",
+      "table": "site",
+      "columns": [
+        "org_id",
+        "region"
+      ],
+      "title": "Asserted natural key is not enforced",
+      "detail": "`(org_id, region)` is declared to identify a `site` row, but nothing enforces it. Retries, double-submits and webhook redeliveries create duplicates.",
+      "suggestion": "Add a unique constraint (partial if the table is soft-deleted).",
+      "fix_sql": "ALTER TABLE site ADD CONSTRAINT site_org_id_region_key UNIQUE (org_id, region);"
+    },
+    {
+      "id": "F020",
+      "check": "rls-missing",
+      "severity": "error",
+      "table": "site",
+      "columns": [
+        "org_id"
+      ],
+      "title": "Tenant table without row-level security",
+      "detail": "`site` carries `org_id` but RLS is not enabled, so isolation depends entirely on every query remembering the WHERE clause. One forgotten filter is a cross-tenant leak.",
+      "suggestion": "Enable RLS and add the standard policy.",
+      "fix_sql": "ALTER TABLE site ENABLE ROW LEVEL SECURITY;\nCREATE POLICY site_tenant_isolation ON site USING (org_id = current_setting('app.tenant_id')::uuid);"
+    },
+    {
+      "id": "F017",
+      "check": "rls-no-policy",
+      "severity": "error",
+      "table": "widget",
+      "columns": [
+        "org_id"
+      ],
+      "title": "RLS enabled but no policy",
+      "detail": "With RLS on and no policy, non-owner roles see zero rows — usually discovered in staging as 'the table is empty'.",
+      "suggestion": "Add a policy.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F002",
+      "check": "fk-index",
+      "severity": "warn",
+      "table": "attachment",
+      "columns": [
+        "org_id"
+      ],
+      "title": "Foreign key without index",
+      "detail": "PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `org` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan.",
+      "suggestion": "Add an index on the FK column(s).",
+      "fix_sql": "CREATE INDEX CONCURRENTLY idx_attachment_org_id ON attachment(org_id);"
+    },
+    {
+      "id": "F003",
+      "check": "fk-index",
+      "severity": "warn",
+      "table": "attachment",
+      "columns": [
+        "widget_id"
+      ],
+      "title": "Foreign key without index",
+      "detail": "PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `widget` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan.",
+      "suggestion": "Add an index on the FK column(s).",
+      "fix_sql": "CREATE INDEX CONCURRENTLY idx_attachment_widget_id ON attachment(widget_id);"
+    },
+    {
+      "id": "F004",
+      "check": "fk-index",
+      "severity": "warn",
+      "table": "attachment",
+      "columns": [
+        "ticket_id"
+      ],
+      "title": "Foreign key without index",
+      "detail": "PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `ticket` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan.",
+      "suggestion": "Add an index on the FK column(s).",
+      "fix_sql": "CREATE INDEX CONCURRENTLY idx_attachment_ticket_id ON attachment(ticket_id);"
+    },
+    {
+      "id": "F010",
+      "check": "cardinality",
+      "severity": "warn",
+      "table": "profile",
+      "columns": [
+        "org_id"
+      ],
+      "title": "Modelled 1:1 but intended 1:N",
+      "detail": "The narrative expects many `profile` per `org`, but the FK is UNIQUE, so the second child will fail to insert.",
+      "suggestion": "Drop the unique constraint, or fix the narrative.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F005",
+      "check": "fk-index",
+      "severity": "warn",
+      "table": "region",
+      "columns": [
+        "lead_id"
+      ],
+      "title": "Foreign key without index",
+      "detail": "PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `site` must scan `region` to check the constraint, and every join from the parent side is a sequential scan.",
+      "suggestion": "Add an index on the FK column(s).",
+      "fix_sql": "CREATE INDEX CONCURRENTLY idx_region_lead_id ON region(lead_id);"
+    },
+    {
+      "id": "F023",
+      "check": "fk-cycle",
+      "severity": "warn",
+      "table": "region",
+      "columns": [],
+      "title": "Foreign-key cycle",
+      "detail": "region → site → region. Rows must be inserted with a deferred constraint or a NULL-then-update dance; backups/restores and truncation have no valid order; ON DELETE CASCADE can loop.",
+      "suggestion": "Break the cycle (move one FK to a link table) or mark one FK DEFERRABLE INITIALLY DEFERRED.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F006",
+      "check": "fk-index",
+      "severity": "warn",
+      "table": "site",
+      "columns": [
+        "org_id",
+        "region"
+      ],
+      "title": "Foreign key without index",
+      "detail": "PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `region` must scan `site` to check the constraint, and every join from the parent side is a sequential scan.",
+      "suggestion": "Add an index on the FK column(s).",
+      "fix_sql": "CREATE INDEX CONCURRENTLY idx_site_org_id_region ON site(org_id, region);"
+    },
+    {
+      "id": "F013",
+      "check": "undocumented-enum",
+      "severity": "warn",
+      "table": "ticket",
+      "columns": [
+        "state"
+      ],
+      "title": "Enum-like column with no CHECK",
+      "detail": "`state` is a short string that clearly takes a fixed set of values, but the database accepts anything. Typos become new states, and nobody can list the legal values without reading application code. The comment lists `open | closed   (enum-ish, no CHECK)`, i.e. the values are known.",
+      "suggestion": "Add a CHECK constraint (cheap, easy to evolve) or a lookup table if values need metadata. Avoid native ENUM types unless the set is truly frozen.",
+      "fix_sql": "ALTER TABLE ticket ADD CONSTRAINT ticket_state_check CHECK (state IN (...));"
+    },
+    {
+      "id": "F008",
+      "check": "fk-on-delete",
+      "severity": "info",
+      "table": "attachment",
+      "columns": [
+        "org_id"
+      ],
+      "title": "Tenant FK relies on the default ON DELETE NO ACTION",
+      "detail": "Deleting a `org` row will fail while `attachment` rows exist. Fine if tenants are never hard-deleted; a surprise the day offboarding/GDPR erasure is built.",
+      "suggestion": "State the intent explicitly: CASCADE, RESTRICT, or an offboarding job.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F014",
+      "check": "timestamp-tz",
+      "severity": "info",
+      "table": "org",
+      "columns": [
+        "created_at"
+      ],
+      "title": "TIMESTAMP without time zone",
+      "detail": "`created_at` stores wall-clock time with no zone. It reads back differently depending on the session's TimeZone, and DST transitions produce ambiguous values.",
+      "suggestion": "Use TIMESTAMPTZ.",
+      "fix_sql": "ALTER TABLE org ALTER COLUMN created_at TYPE timestamptz;"
+    },
+    {
+      "id": "F024",
+      "check": "blast-radius",
+      "severity": "info",
+      "table": "org",
+      "columns": [],
+      "title": "Hub table: referenced by 5 tables",
+      "detail": "Any change to its key, its delete semantics, or its partitioning touches every dependent. Migrations on hub tables need the longest lock windows and the most careful rollout.",
+      "suggestion": "Treat schema changes here as breaking changes with a written rollout plan.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F022",
+      "check": "singleton-table",
+      "severity": "info",
+      "table": "profile",
+      "columns": [],
+      "title": "Single-row configuration table",
+      "detail": "`profile` is documented as holding exactly one row. Nothing enforces that, and the day a second instance is needed (a second GitHub App, a staging vs prod config) every reader that does `SELECT * ... LIMIT 1` becomes wrong.",
+      "suggestion": "Either enforce one row (CHECK on a constant column with a UNIQUE) or give it a discriminator now (`provider_id`, `environment`) while there is only one row to backfill.",
+      "fix_sql": "ALTER TABLE profile ADD COLUMN singleton boolean NOT NULL DEFAULT true CHECK (singleton);\nCREATE UNIQUE INDEX profile_one_row ON profile(singleton);"
+    },
+    {
+      "id": "F007",
+      "check": "fk-nullable",
+      "severity": "info",
+      "table": "region",
+      "columns": [
+        "lead_id"
+      ],
+      "title": "Nullable foreign key",
+      "detail": "`region.lead_id` may be NULL, so the relationship to `site` is optional. That is legitimate (e.g. approved_by before approval) but often a modelling shrug: a row with no owner, or two nullable FKs that are secretly an either/or.",
+      "suggestion": "Confirm the optionality is a domain rule; document it in the column comment.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F009",
+      "check": "fk-on-delete",
+      "severity": "info",
+      "table": "region",
+      "columns": [
+        "org_id"
+      ],
+      "title": "Tenant FK relies on the default ON DELETE NO ACTION",
+      "detail": "Deleting a `org` row will fail while `region` rows exist. Fine if tenants are never hard-deleted; a surprise the day offboarding/GDPR erasure is built.",
+      "suggestion": "State the intent explicitly: CASCADE, RESTRICT, or an offboarding job.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F021",
+      "check": "orphan-table",
+      "severity": "info",
+      "table": "scratch",
+      "columns": [],
+      "title": "Isolated table",
+      "detail": "`scratch` references nothing and nothing references it. Either it is a staging/log table (fine, say so), or it is dead, or it is the seed of a second data model growing beside the first.",
+      "suggestion": "Document its purpose or drop it.",
+      "fix_sql": ""
+    },
+    {
+      "id": "F025",
+      "check": "wide-table",
+      "severity": "info",
+      "table": "widget",
+      "columns": [],
+      "title": "Wide table (30 columns)",
+      "detail": "Tables this wide usually hide several entities (or a JSON column that wants to be one). Every row update rewrites the whole tuple; TOAST kicks in; indexes bloat.",
+      "suggestion": "Look for column groups that always change together and split them out.",
+      "fix_sql": ""
+    }
+  ]
+}

@@ -1,14 +1,14 @@
 ---
 name: db-architecture-review
 description: Document a project's PostgreSQL schema and rigorously review its logical and physical design in one pass — wrong cardinality, unenforced natural keys, junction tables that allow duplicates, tenant-isolation gaps, enum-ish columns with no CHECK, soft-delete/UNIQUE collisions, polymorphic references, and the places where the next feature will hurt. Use this whenever the user asks to review, audit, document, or sanity-check a database schema, data model, ERD, migrations, or "our tables"; when they ask whether a data model will scale or what an extension would break; or when a PR touches schema.sql / migrations and they want a design opinion, not just a syntax check. Also use it when asked to generate database documentation — the docs and the review come from the same run.
-compatibility: Python 3.10+ and `pip install pglast` (bundles the real PostgreSQL parser). PostgreSQL DDL only.
+compatibility: Node 24+ and `npm install` in the skill folder (pulls libpg-query, a WebAssembly build of the real PostgreSQL parser). PostgreSQL DDL only.
 ---
 
 # Database architecture review
 
 Two halves, deliberately separated:
 
-1. **Mechanical** — `scripts/db_review.py` parses the DDL with the real
+1. **Mechanical** — `scripts/db-review.ts` parses the DDL with the real
    PostgreSQL parser, builds a model, joins it with human intent from
    `narratives.json`, runs ~20 deterministic checks, and writes browsable
    docs + `schema.json` + `FINDINGS.md`. It exits non-zero on errors, so it
@@ -60,8 +60,8 @@ natural keys can only be checked against a claim. If the file is missing:
 ### 3. Run the script
 
 ```bash
-pip install pglast --break-system-packages   # once
-python scripts/db_review.py /tmp/schema.sql --narratives narratives.json --out docs/database
+npm install                                  # once, in the skill folder
+node scripts/db-review.ts /tmp/schema.sql --narratives narratives.json --out docs/database
 ```
 
 Read the summary it prints, then `docs/database/FINDINGS.md`. Open

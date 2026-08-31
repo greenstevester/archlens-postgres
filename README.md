@@ -6,7 +6,7 @@ can click through to, and the docs show every flaw next to the table it
 belongs to.
 
 ```
-python scripts/db_review.py schema.sql --narratives narratives.json --out docs/database
+node scripts/db-review.ts schema.sql --narratives narratives.json --out docs/database
 ```
 
 produces
@@ -25,10 +25,10 @@ and exits `1` if any error-severity finding exists (`--fail-on` to tune).
 ## Install
 
 ```
-pip install pglast          # bundles libpg_query — the real PostgreSQL parser
+npm install                 # one dependency: libpg-query, a WebAssembly build of the real PostgreSQL parser
 ```
 
-Python 3.10+. No other dependencies.
+Node 24 or newer. Node runs the `.ts` file directly, so there is no build step.
 
 ## The two files you give it
 
@@ -87,11 +87,14 @@ and usually `fix_sql`.
 ## In CI
 
 ```yaml
-- run: pip install pglast
-- run: python scripts/db_review.py db/schema.sql --narratives db/narratives.json --out docs/database --fail-on error
+- uses: actions/setup-node@v4
+  with:
+    node-version: 24
+- run: npm ci
+- run: node scripts/db-review.ts db/schema.sql --narratives db/narratives.json --out docs/database --fail-on error
 ```
 
-Commit `docs/database/` so the review lives next to the schema.
+`npm ci` runs where `package.json` lives; add `working-directory:` if the skill sits under `.claude/skills/`. Commit `docs/database/` so the review lives next to the schema.
 
 ## With Claude Code
 
@@ -105,12 +108,16 @@ and `references/review-checklist.md`.
 ## Try it
 
 ```
-python scripts/db_review.py examples/sample-schema.sql --narratives examples/narratives.json --out examples/out
+node scripts/db-review.ts examples/sample-schema.sql --narratives examples/narratives.json --out examples/out
 open examples/out/index.html
 ```
 
 The sample schema has 19 tables with every flaw marked `⚠ FLAW`; the run
-finds all of them and nothing else.
+finds all of them and nothing else. `npm test` runs that sample and a second
+fixture (`test/fixtures/edge-cases.sql`, every construct the sample lacks) and
+compares every output file with the committed output, so a change to a check
+shows up as a diff. It also renders 54 CHECK and DEFAULT expressions and
+compares each with what the original Python tool printed.
 
 ## Limits
 

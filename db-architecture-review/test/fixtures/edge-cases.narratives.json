@@ -1,0 +1,42 @@
+{
+  "database": {
+    "title": "Edge cases",
+    "blurb": "Every construct the sample schema lacks, so the port is exercised on real parser output."
+  },
+  "conventions": [
+    "The tenant column is org_id."
+  ],
+  "domains": [
+    {
+      "key": "core",
+      "title": "Core",
+      "blurb": "Organisations, and a table the narrative still lists but the schema dropped.",
+      "tenant_scoped": false,
+      "tables": ["org", "ghost_table"]
+    },
+    {
+      "key": "work",
+      "title": "Work",
+      "blurb": "Everything an organisation owns. Each org has exactly one profile; the assertion below deliberately says otherwise.",
+      "tenant_scoped": true,
+      "tables": ["widget", "attachment", "ticket", "profile", "region", "site", "scratch"]
+    }
+  ],
+  "assertions": {
+    "tenant_table": "org",
+    "tenant_column": "org_id",
+    "require_rls": true,
+    "global_tables": [],
+    "singleton_tables": ["profile"],
+    "cardinality": [
+      { "parent": "org", "child": "profile", "expect": "1:N" },
+      { "parent": "org", "child": "scratch", "expect": "1:1" }
+    ],
+    "natural_keys": [
+      { "table": "site", "columns": ["org_id", "region"] }
+    ],
+    "exclusive_arcs": [
+      { "table": "attachment", "columns": ["widget_id", "ticket_id"] }
+    ]
+  }
+}

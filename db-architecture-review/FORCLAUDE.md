@@ -241,3 +241,43 @@ viewer. Every visual bug I fixed today was invisible in the code.
 rule — every table must be claimed — and that rule is why the docs were
 still accurate at 162 tables. Add one rule that fails the build and the
 tool survives; add ten warnings nobody reads and it doesn't.
+
+
+---
+
+## Postscript — 2026-08-31: ported to TypeScript
+
+The Python version described above is gone. The machines this runs on have no
+Python, so the script is now `scripts/db-review.ts`, run directly by Node 24
+(no build step) with `libpg-query`, a WebAssembly build of the same PostgreSQL
+parser that pglast wrapped. Section 2's reasoning still holds: the deep choice
+was "real parser, not regex", and that survived the port. Go was considered and
+rejected because its binding compiles the C parser at build time, which means a
+C compiler or a pre-built binary per platform for anyone copying the skill in.
+
+What stayed: the four sections (model, parse, checks, render), the check order,
+every finding's wording, the JSON key order, the self-contained HTML. What
+changed: pglast's built-in printer is replaced by a hand-written one
+(`renderExpr`) that reproduces pglast's formatting for the node kinds that occur
+in table DDL — constants, casts as `CAST(x AS type)`, operators with nested
+operands in parentheses, `NOT(...)` around boolean groups, `IN`, `BETWEEN`,
+`LIKE`, `ANY`, `CASE`, `COALESCE`, `GREATEST`/`LEAST`, subscripts. Anything
+else renders as `…` plus the column names inside it, so the either/or check
+still sees its columns; row values and `COLLATE` are the two known cases. The
+parse walk is typed against `@pgsql/types`, so a misspelt enum value or field
+is a compile error rather than a silent miss. The foreign-key-cycle check now
+walks tables in insertion order, where the Python iterated a hash-randomised
+set. libpg_query reports a statement's location as the byte after the previous
+semicolon; pglast moves it to the first token (checked: it reports 674 for
+`CREATE TABLE provider`, and that is where the text starts), so `firstToken()`
+does the same before line numbers and descriptions are read.
+
+Verification has three parts, all in `npm test`. The sample schema's committed
+output, produced by the Python, is compared byte for byte; only the timestamp
+and the script's name in the FINDINGS.md header differ. A second fixture,
+`test/fixtures/edge-cases.sql`, holds every construct the sample lacks; its
+golden output came from this tool after diffing it against the Python on the
+same input, where the only differences were that header line and the row-value
+CHECK. And `test/fixtures/expressions.sql` holds 54 expressions whose expected
+renderings are what pglast printed for the same file; 52 match, the other two
+are the documented fallback.
