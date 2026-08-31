@@ -543,6 +543,33 @@ describe('relationship notes for two foreign keys to one parent', () => {
     assert.match(f.find((x) => x.table === 'key_rotations')!.suggestion, /columns/);
     assert.doesNotMatch(f.find((x) => x.table === 'balances')!.suggestion, /columns/);
   });
+
+  it('warns on an ambiguous entry instead of enforcing expect against every sibling key', () => {
+    const n = { assertions: { cardinality: [
+      { parent: 'tenants', child: 'key_rotations', expect: '1:1', why: 'which key is meant?' },
+    ] } };
+    const f = new Reviewer(tables, n).run().filter((x) => x.check === 'cardinality');
+    assert.equal(f.filter((x) => x.title.includes('Modelled')).length, 0,
+      'expect must not be enforced against a key the author never named');
+    const warn = f.find((x) => x.title === 'Ambiguous relationship narrative');
+    assert.ok(warn, 'the ambiguity must be reported, not silently dropped');
+    assert.equal(warn!.severity, 'warn');
+    assert.match(warn!.suggestion, /"columns"/);
+    assert.match(warn!.detail, /tenant_id/);
+    assert.match(warn!.detail, /rotated_by/);
+  });
+
+  it('points at an empty columns array instead of claiming the foreign key is missing', () => {
+    const n = { assertions: { cardinality: [
+      { parent: 'tenants', child: 'balances', columns: [], why: 'placeholder left behind' },
+    ] } };
+    const f = new Reviewer(tables, n).run().filter((x) => x.check === 'cardinality');
+    assert.equal(f.filter((x) => x.title.includes('no foreign key')).length, 0,
+      'the foreign key exists; the entry is what is broken');
+    const warn = f.find((x) => x.title.includes('empty `columns`'));
+    assert.ok(warn, 'an empty columns array must be reported as the mistake it is');
+    assert.equal(warn!.severity, 'warn');
+  });
 });
 
 // Several foreign keys leaving one child used to print every edge label at the same height,
