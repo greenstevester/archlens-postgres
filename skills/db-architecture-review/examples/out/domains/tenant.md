@@ -4,39 +4,7 @@ The Provider → Tenant hierarchy every other table hangs off, with per-tenant s
 
 Tenant-scoped: no
 
-```mermaid
-erDiagram
-  provider {
-    uuid id PK
-    varchar_255 name
-    timestamptz created_at
-  }
-  tenant {
-    uuid id PK
-    uuid provider_id FK
-    varchar_63 slug UK
-    varchar_255 display_name
-    varchar_20 status
-    timestamptz created_at
-    timestamptz updated_at
-  }
-  tenant_settings {
-    uuid id PK
-    uuid tenant_id FK
-    varchar_64 timezone
-    varchar_16 locale
-    timestamptz updated_at
-  }
-  tenant_auth_config {
-    uuid tenant_id PK FK
-    text oidc_issuer
-    boolean mfa_required
-    timestamptz updated_at
-  }
-  provider ||--o{ tenant : "provider_id"
-  tenant ||--o{ tenant_settings : "tenant_id"
-  tenant ||--|| tenant_auth_config : "tenant_id"
-```
+![Multi-tenancy diagram](tenant.svg)
 
 ## Relationships
 

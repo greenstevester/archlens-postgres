@@ -11,7 +11,8 @@
  *
  *     <out>/schema.json     machine-readable model + findings (input for the LLM pass)
  *     <out>/index.html      self-contained browsable docs with findings inline
- *     <out>/README.md       markdown index + per-domain pages with Mermaid ERDs
+ *     <out>/README.md       markdown index + per-domain pages with SVG ERDs
+ *     <out>/erd.svg         whole-schema entity-relationship diagram (one more per domain)
  *     <out>/FINDINGS.md     findings grouped by severity with fix suggestions
  *
  * Exit code is non-zero when findings at or above --fail-on exist, so this can
@@ -1197,32 +1198,6 @@ export function modelToJson(tables: Map<string, Table>, extras: Extras, narrativ
   };
 }
 
-export function mermaidErd(tables: Map<string, Table>, names: string[]): string {
-  const out = ['erDiagram'];
-  for (const n of names) {
-    const t = tables.get(n);
-    if (!t) continue;
-    out.push(`  ${n} {`);
-    for (const c of t.columns) {
-      const flags = [c.is_pk ? 'PK' : '', c.is_fk ? 'FK' : '', c.is_unique ? 'UK' : ''].filter(Boolean).join(' ');
-      const typ = c.type.replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
-      out.push(`    ${typ} ${c.name} ${flags}`.trimEnd());
-    }
-    out.push('  }');
-  }
-  for (const n of names) {
-    const t = tables.get(n);
-    if (!t) continue;
-    for (const fk of t.fks) {
-      // A parent outside the set still gets its line; Mermaid draws it as an attribute-less entity.
-      const left = fk.nullable ? '|o' : '||';
-      const right = fk.unique ? '||' : 'o{';
-      out.push(`  ${fk.ref_table} ${left}--${right} ${n} : "${fk.columns.join(', ')}"`);
-    }
-  }
-  return out.join('\n');
-}
-
 export interface Relationship {
   child: string;
   columns: string[];
@@ -1262,8 +1237,19 @@ export function describeRelationship(r: Relationship): string {
 }
 
 // Diagram geometry, in px. Text widths come from character counts, so the output is deterministic
-// and needs no font metrics; the page CSS gives the classes their colours.
+// and needs no font metrics; the page CSS gives the classes their colours (a standalone .svg file
+// embeds ERD_STYLE instead, because it has no page).
 const ERD = { charW: 7.2, rowH: 18, headH: 28, pad: 10, gapX: 48, gapY: 76, margin: 24, minW: 120, loop: 26 };
+
+// Literal palette for standalone .svg files: the light half of the page palette, light background,
+// dark strokes, no var(--) references — an .svg on disk inherits nothing.
+const ERD_STYLE = 'svg{font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}'
+  + '.bg{fill:#fbfaf7}.bx{fill:#ffffff;stroke:#1d2430;stroke-width:1.2}.hd{fill:#e2ddd3}'
+  + '.stub .bx{stroke:#6b7280;stroke-dasharray:4 3}.stub .hd{fill:none}'
+  + '.ttl{font-weight:700;fill:#1d2430}.col{fill:#1d2430}.typ,.lbl{fill:#6b7280;font-size:11px}'
+  + '.key{fill:#1f5f8b;font-weight:700;font-size:10px}'
+  + '.ln,.end path{fill:none;stroke:#1d2430;stroke-width:1.2}'
+  + '.end circle{fill:#ffffff;stroke:#1d2430;stroke-width:1.2}';
 
 interface ErdBox {
   name: string;
@@ -1289,8 +1275,9 @@ function erdEnd(kind: string, x: number, y: number, angle: number, side: string)
 
 /** An entity-relationship diagram of `names` as self-contained SVG: every named table in full,
  *  a stub box for each parent referenced from outside the set, and one edge per foreign key
- *  with crow's-foot ends derived from the schema. Parents sit above children. */
-export function svgErd(tables: Map<string, Table>, names: string[]): string {
+ *  with crow's-foot ends derived from the schema. Parents sit above children. With `standalone`
+ *  the SVG carries its own palette and background, for writing to an .svg file. */
+export function svgErd(tables: Map<string, Table>, names: string[], standalone = false): string {
   const e = escapeHtml;
   const inSet = names.filter((n) => tables.has(n));
   const stubs = [...new Set(inSet.flatMap((n) => tables.get(n)!.fks.map((fk) => fk.ref_table)))]
@@ -1428,8 +1415,9 @@ export function svgErd(tables: Map<string, Table>, names: string[]): string {
 
   const W = Math.ceil(maxX + ERD.margin);
   const title = `Entity-relationship diagram: ${inSet.join(', ')}`;
+  const own = standalone ? `<style>${ERD_STYLE}</style><rect class="bg" width="${W}" height="${H}"/>` : '';
   return `<svg class="erd" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" `
-    + `role="img" aria-label="${e(title)}"><title>${e(title)}</title>${out.join('')}</svg>`;
+    + `role="img" aria-label="${e(title)}"><title>${e(title)}</title>${own}${out.join('')}</svg>`;
 }
 
 export function writeMarkdown(outdir: string, tables: Map<string, Table>, narratives: Narratives, findings: Finding[], stats: Stats): void {
@@ -1450,7 +1438,8 @@ export function writeMarkdown(outdir: string, tables: Map<string, Table>, narrat
   }
   const unclaimed = [...tables.values()].filter((t) => t.domain === null).map((t) => t.name);
   if (unclaimed.length) lines.push('', `Unclaimed tables: ${unclaimed.map((n) => `\`${n}\``).join(', ')}`);
-  lines.push('', '## Diagram', '', '```mermaid', mermaidErd(tables, [...tables.keys()]), '```');
+  lines.push('', '## Diagram', '', '![Entity-relationship diagram](erd.svg)');
+  writeFileSync(path.join(outdir, 'erd.svg'), `${svgErd(tables, [...tables.keys()], true)}\n`);
   writeFileSync(path.join(outdir, 'README.md'), `${lines.join('\n')}\n`);
 
   const domainRelationships = (d: Narratives): Relationship[] =>
@@ -1458,9 +1447,10 @@ export function writeMarkdown(outdir: string, tables: Map<string, Table>, narrat
 
   const fmap = new Map(findings.map((f) => [f.id, f]));
   for (const d of domains) {
+    writeFileSync(path.join(outdir, 'domains', `${d.key}.svg`), `${svgErd(tables, d.tables, true)}\n`);
     const dl: string[] = [`# ${d.title}`, '', d.blurb ?? '', '',
-      `Tenant-scoped: ${d.tenant_scoped ? 'yes' : 'no'}`, '', '```mermaid',
-      mermaidErd(tables, d.tables), '```', '', '## Relationships', ''];
+      `Tenant-scoped: ${d.tenant_scoped ? 'yes' : 'no'}`, '',
+      `![${d.title} diagram](${d.key}.svg)`, '', '## Relationships', ''];
     const rels = domainRelationships(d);
     if (!rels.length) dl.push('_No foreign keys in this domain._', '');
     for (const r of rels) {
@@ -1580,7 +1570,8 @@ export function writeHtml(outdir: string, tables: Map<string, Table>, narratives
   };
 
   const nav = ['<a href="#overview">Overview</a>', '<a href="#conventions">Conventions</a>',
-    `<a href="#findings">Findings <span class="count">${findings.length}</span></a>`];
+    `<a href="#findings">Findings <span class="count">${findings.length}</span></a>`,
+    '<a href="#schema">Schema</a>'];
   for (const d of domains) {
     const c = sevCounts(d.tables);
     nav.push(`<a href="#d-${e(d.key)}">${e(d.title)} <span class="count">${d.tables.length}</span>`
@@ -1661,6 +1652,9 @@ export function writeHtml(outdir: string, tables: Map<string, Table>, narratives
     }
   }
   body.push(`<section id="findings"><h2>Findings</h2>${fitems.join('') || '<p class=muted>No findings.</p>'}</section>`);
+
+  // The whole-schema diagram is present in every run, narratives or not.
+  body.push(`<section id="schema"><h2>Schema</h2><div class="erd-wrap">${svgErd(tables, [...tables.keys()])}</div></section>`);
 
   for (const d of domains) {
     const secs = (d.tables as string[]).map((n) => {

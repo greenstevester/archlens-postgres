@@ -4,18 +4,7 @@ Invoice lines per tenant.
 
 Tenant-scoped: yes
 
-```mermaid
-erDiagram
-  invoice_line {
-    uuid id PK
-    uuid tenant_id FK
-    text description
-    double_precision amount
-    char_3 currency
-    timestamptz billed_at
-  }
-  tenant ||--o{ invoice_line : "tenant_id"
-```
+![Billing diagram](billing.svg)
 
 ## Relationships
 

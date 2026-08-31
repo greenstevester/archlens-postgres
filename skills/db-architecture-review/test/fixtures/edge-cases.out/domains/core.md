@@ -4,38 +4,7 @@ Organisations, and a table the narrative still lists but the schema dropped.
 
 Tenant-scoped: no
 
-```mermaid
-erDiagram
-  org {
-    bigserial id PK
-    text name
-    varchar_10 kind
-    real fee
-    numeric_14_2 weight
-    text tags
-    jsonb settings
-    timestamp_3 created_at
-    integer score
-    double_precision ratio
-    boolean active
-    char_2 note
-    smallint seq_no
-    mood feeling
-  }
-  job_state {
-    uuid id PK
-    bigint org_id FK
-    text status
-    text state
-    integer uses
-    integer max_uses
-  }
-  app_config {
-    integer id PK
-    text site_name
-  }
-  org ||--o{ job_state : "org_id"
-```
+![Core diagram](core.svg)
 
 ## Relationships
 

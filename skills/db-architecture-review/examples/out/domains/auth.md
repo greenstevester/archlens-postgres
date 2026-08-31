@@ -4,25 +4,7 @@ Who can log in and how: users and their sessions.
 
 Tenant-scoped: yes
 
-```mermaid
-erDiagram
-  users {
-    uuid id PK
-    uuid tenant_id FK
-    text email UK
-    varchar_255 full_name
-    timestamptz deleted_at
-    timestamptz created_at
-  }
-  sessions {
-    uuid id PK
-    uuid user_id FK
-    timestamp expires_at
-    timestamptz created_at
-  }
-  tenant ||--o{ users : "tenant_id"
-  users ||--o{ sessions : "user_id"
-```
+![Authentication & identity diagram](auth.svg)
 
 ## Relationships
 
