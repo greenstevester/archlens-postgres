@@ -54,7 +54,8 @@ natural keys can only be checked against a claim. If the file is missing:
   `tenant_table`/`tenant_column`/`require_rls`, `global_tables`,
   `singleton_tables`, `cardinality` (parent, child, expect `1:1`|`1:N`, and a one-sentence `why`
   the docs print beside the relationship — set `require_relationship_notes: true` to be told
-  about every foreign key that still has none),
+  about every foreign key that still has none; add `columns` when a table has two foreign keys
+  to the same parent, so each gets its own sentence),
   `natural_keys`, `exclusive_arcs`.
 - **Show the draft to the user and ask them to correct it before running.**
   A wrong assertion produces a confident wrong finding.

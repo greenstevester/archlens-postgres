@@ -800,7 +800,8 @@ export class Reviewer {
     for (const a of (this.a.cardinality ?? []) as Narratives[]) {
       const child = this.t.get(a.child);
       if (!child) continue;
-      const fks = child.fks.filter((fk) => fk.ref_table === a.parent);
+      const fks = child.fks.filter((fk) => fk.ref_table === a.parent
+        && (!Array.isArray(a.columns) || sameSet(a.columns as string[], fk.columns)));
       if (!fks.length) {
         this.add('cardinality', 'error', a.child, [], 'Asserted relationship has no foreign key',
           `narratives.json says \`${a.parent}\` → \`${a.child}\` ${a.expect ? `is ${a.expect}` : 'exists'}, but there is `
@@ -835,11 +836,14 @@ export class Reviewer {
       for (const r of relationships(t, this.n)) {
         if (r.why) continue;
         const cols = r.columns.join(', ');
+        const ambiguous = t.fks.filter((k) => k.ref_table === r.parent).length > 1;
         this.add('undocumented-relationship', 'info', t.name, r.columns, 'Relationship has no narrative',
           `\`${t.name}.${cols}\` → \`${r.parent}\` is ${describeRelationship(r)}, but narratives.json `
           + 'does not say why the relationship exists, so the docs show the constraint and nothing else.',
           `Add a \`why\` to the \`${r.parent}\` → \`${t.name}\` entry in assertions.cardinality `
-          + '(create the entry if it is missing; `expect` is optional).');
+          + '(create the entry if it is missing; `expect` is optional)'
+          + (ambiguous ? `, and give it \`"columns": [${r.columns.map((c) => `"${c}"`).join(', ')}]\` because `
+            + `\`${t.name}\` has more than one foreign key to \`${r.parent}\`.` : '.'));
       }
     }
   }
@@ -1236,8 +1240,13 @@ export interface Relationship {
 export function relationships(t: Table, narratives: Narratives | null | undefined): Relationship[] {
   const notes = ((narratives?.assertions ?? {}).cardinality ?? []) as Narratives[];
   return t.fks.map((fk) => {
-    const note = notes.find((a) => a.parent === fk.ref_table && a.child === t.name
+    // An entry naming `columns` belongs to that foreign key alone. One without applies only
+    // when the pair is unambiguous, so two foreign keys to one parent never share a sentence.
+    const candidates = notes.filter((a) => a.parent === fk.ref_table && a.child === t.name
       && typeof a.why === 'string' && a.why.trim() !== '');
+    const siblings = t.fks.filter((k) => k.ref_table === fk.ref_table).length;
+    const note = candidates.find((a) => Array.isArray(a.columns) && sameSet(a.columns as string[], fk.columns))
+      ?? (siblings === 1 ? candidates.find((a) => !Array.isArray(a.columns)) : undefined);
     return {
       child: t.name, columns: fk.columns, parent: fk.ref_table, ref_columns: fk.ref_columns,
       cardinality: fk.cardinality, required: !fk.nullable, on_delete: fk.on_delete, indexed: fk.indexed,
@@ -1520,6 +1529,7 @@ const CSS = `
 .erd .ttl{font-weight:700;fill:var(--ink)}.erd .col{fill:var(--ink)}.erd .typ,.erd .lbl{fill:var(--mute);font-size:11px}.erd .key{fill:var(--acc);font-weight:700;font-size:10px}
 .erd .ln,.erd .end path{fill:none;stroke:var(--ink);stroke-width:1.2}.erd .end circle{fill:var(--panel);stroke:var(--ink);stroke-width:1.2}
 .rels{list-style:none;padding:0;margin:8px 0 16px}.rels li{padding:6px 0;border-bottom:1px solid var(--rule)}.rels .why{font-style:italic}
+.rels-h{margin:18px 0 2px}
 *{box-sizing:border-box}body{margin:0;font:15px/1.5 Georgia,'Iowan Old Style','Palatino Linotype',serif;color:var(--ink);background:var(--bg);display:flex;align-items:flex-start;min-height:100vh}
 nav{flex:0 0 270px;position:sticky;top:0;height:100vh;overflow:auto;padding:22px 18px;border-right:1px solid var(--rule);background:var(--panel)}
 nav .brand{font-size:17px;font-weight:700;margin:0 0 2px}nav .sub{color:var(--mute);font-size:13px;margin:0 0 14px}
@@ -1667,7 +1677,8 @@ export function writeHtml(outdir: string, tables: Map<string, Table>, narratives
       : '<p class="muted">No foreign keys in this domain.</p>';
     body.push(`<section class="domain" id="d-${e(d.key)}"><h2>${e(d.title)} <span class="muted">${d.tables.length} tables`
       + `${d.tenant_scoped ? ' · tenant-scoped' : ''}</span></h2><p class="lead">${e(d.blurb ?? '')}</p>`
-      + `<div class="erd-wrap">${svgErd(tables, d.tables)}</div>${relHtml}${secs}</section>`);
+      + `<div class="erd-wrap">${svgErd(tables, d.tables)}</div>`
+      + `<h3 class="rels-h">Relationships</h3>${relHtml}${secs}</section>`);
   }
   if (unclaimed.length) {
     body.push('<section class="domain" id="d-unclaimed"><h2>Unclaimed tables</h2><p class="lead">Present in the schema, absent from every domain.</p>'

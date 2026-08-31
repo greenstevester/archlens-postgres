@@ -443,5 +443,58 @@ describe('informer output', () => {
     assert.equal((html.match(/<svg class="erd"/g) ?? []).length, 2);
     assert.match(html, /<ul class="rels">.*<code>widget\.org_id<\/code> → <a href="#t-org">org<\/a>\.id.*a widget is built by one organisation/s);
     assert.ok(!html.includes('mermaid'));
+    assert.equal((html.match(/<h3 class="rels-h">Relationships<\/h3>/g) ?? []).length, 2, "one heading per domain, above the list or the no-foreign-keys fallback");
+  });
+});
+
+// A table with two foreign keys to the same parent (tenant_id and rotated_by, say) needs a
+// `columns` field on the narrative entry, or one sentence would be printed for both.
+describe('relationship notes for two foreign keys to one parent', () => {
+  const ddl = `
+    CREATE TABLE tenants (id UUID PRIMARY KEY);
+    CREATE TABLE key_rotations (
+      id          UUID PRIMARY KEY,
+      tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      rotated_by  UUID REFERENCES tenants(id)
+    );
+    CREATE TABLE balances (tenant_id UUID NOT NULL REFERENCES tenants(id), account TEXT NOT NULL, PRIMARY KEY (tenant_id, account));`;
+  let tables: Map<string, Table>;
+  before(async () => {
+    ({ tables } = await parseSchema(ddl, 'inline'));
+  });
+  const why = (n: Record<string, any>, table: string, col: string): string | null =>
+    relationships(tables.get(table)!, n).find((r) => r.columns[0] === col)!.why;
+
+  it('matches an entry with columns to that foreign key only', () => {
+    const n = { assertions: { cardinality: [
+      { parent: 'tenants', child: 'key_rotations', columns: ['tenant_id'], why: 'the tenant whose key was rotated' },
+      { parent: 'tenants', child: 'key_rotations', columns: ['rotated_by'], why: 'who performed the rotation' },
+    ] } };
+    assert.equal(why(n, 'key_rotations', 'tenant_id'), 'the tenant whose key was rotated');
+    assert.equal(why(n, 'key_rotations', 'rotated_by'), 'who performed the rotation');
+  });
+
+  it('refuses to apply an entry without columns to an ambiguous pair', () => {
+    const n = { assertions: { cardinality: [{ parent: 'tenants', child: 'key_rotations', why: 'which one?' }] } };
+    assert.equal(why(n, 'key_rotations', 'tenant_id'), null);
+    assert.equal(why(n, 'key_rotations', 'rotated_by'), null);
+  });
+
+  it('still applies an entry without columns when the pair has one foreign key', () => {
+    const n = { assertions: { cardinality: [{ parent: 'tenants', child: 'balances', why: 'a balance is per tenant' }] } };
+    assert.equal(why(n, 'balances', 'tenant_id'), 'a balance is per tenant');
+  });
+
+  it('checks an expect with columns against that foreign key only', () => {
+    const n = { assertions: { cardinality: [{ parent: 'tenants', child: 'key_rotations', columns: ['rotated_by'], expect: '1:1' }] } };
+    const f = new Reviewer(tables, n).run().filter((x) => x.check === 'cardinality');
+    assert.deepEqual(f.map((x) => x.columns), [['rotated_by']]);
+  });
+
+  it('tells the author to add columns when the undocumented pair is ambiguous', () => {
+    const n = { assertions: { require_relationship_notes: true, cardinality: [] } };
+    const f = new Reviewer(tables, n).run().filter((x) => x.check === 'undocumented-relationship');
+    assert.match(f.find((x) => x.table === 'key_rotations')!.suggestion, /columns/);
+    assert.doesNotMatch(f.find((x) => x.table === 'balances')!.suggestion, /columns/);
   });
 });
