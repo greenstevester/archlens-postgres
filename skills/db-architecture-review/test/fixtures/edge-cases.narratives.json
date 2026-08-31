@@ -12,7 +12,7 @@
       "title": "Core",
       "blurb": "Organisations, and a table the narrative still lists but the schema dropped.",
       "tenant_scoped": false,
-      "tables": ["org", "ghost_table"]
+      "tables": ["org", "ghost_table", "job_state", "app_config"]
     },
     {
       "key": "work",
@@ -27,7 +27,7 @@
     "tenant_column": "org_id",
     "require_rls": true,
     "global_tables": [],
-    "singleton_tables": ["profile"],
+    "singleton_tables": ["profile", "app_config"],
     "cardinality": [
       { "parent": "org", "child": "profile", "expect": "1:N" },
       { "parent": "org", "child": "scratch", "expect": "1:1" }

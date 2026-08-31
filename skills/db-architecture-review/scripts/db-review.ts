@@ -343,13 +343,17 @@ async function getParser(): Promise<Parser> {
 
 export async function parseSchema(sqlText: string, _path: string): Promise<{ tables: Map<string, Table>; extras: Extras }> {
   const { parseSync } = await getParser();
+  // pg_dump 16.10+ / 17.6+ wraps its output in `\restrict <key>` ... `\unrestrict <key>`. Those
+  // are psql commands, not SQL, and the parser rejects them. Blank them with the same number of
+  // characters so every byte offset and line number below still points at the same place.
+  const sql = sqlText.replace(/^\\.*$/gm, (line) => ' '.repeat(line.length));
   const tables = new Map<string, Table>();
   const enumTypes = new Set<string>();
   const pendingAlters: AlterTableStmt[] = [];
   const extras: Extras = { extensions: [], enums: {}, unparsed: [] };
-  const lines = sqlText.split('\n');
+  const lines = sql.split('\n');
   // Statement locations are byte offsets into the UTF-8 text.
-  const bytes = Buffer.from(sqlText, 'utf8');
+  const bytes = Buffer.from(sql, 'utf8');
 
   const lineOf = (offset: number): number => {
     let n = 1;
@@ -405,7 +409,7 @@ export async function parseSchema(sqlText: string, _path: string): Promise<{ tab
     return [desc, section];
   };
 
-  const result = parseSync(sqlText);
+  const result = parseSync(sql);
   for (const raw of result.stmts ?? []) {
     const stmt = raw.stmt;
     if (!stmt) continue;
@@ -543,14 +547,39 @@ function applyTableConstraint(t: Table, c: Constraint): void {
       }
       break;
     }
-    case 'CONSTR_CHECK':
-      t.checks.push(renderExpr(c.raw_expr));
+    case 'CONSTR_CHECK': {
+      const rendered = renderExpr(c.raw_expr);
+      t.checks.push(rendered);
+      // pg_dump writes every CHECK at table level, even one declared inline. A CHECK that
+      // mentions exactly one column is that column's CHECK; the enum and singleton checks
+      // read it from the column.
+      const names = [...new Set(columnNames(c.raw_expr))];
+      const cc = names.length === 1 ? col(t, names[0]) : null;
+      if (cc && cc.check === null) cc.check = rendered;
       break;
+    }
     case 'CONSTR_FOREIGN':
       t.fks.push(newForeignKey(c.conname ?? null, svals(c.fk_attrs), c.pktable?.relname ?? '', svals(c.pk_attrs),
         DEL_ACTIONS[c.fk_del_action ?? ''] ?? 'NO ACTION'));
       break;
   }
+}
+
+/** True when a CHECK pins a uniquely-constrained column to one constant, so the table can hold
+ *  at most one row: `CHECK (id = 1)` on the primary key, or `CHECK (singleton)` on a boolean
+ *  under a unique index (the fix the singleton-table finding suggests). */
+function oneRowGuard(t: Table): boolean {
+  const unique = (name: string): boolean =>
+    (t.pk.length === 1 && t.pk[0] === name)
+    || t.uniques.some((u) => u.length === 1 && u[0] === name)
+    || t.indexes.some((ix) => ix.unique && !ix.where && ix.columns.length === 1 && ix.columns[0] === name);
+  const pinned = (c: Column): boolean => {
+    if (c.check === null) return false;
+    if (c.check === c.name) return true;
+    const m = /^(.+?) = (-?\d+(?:\.\d+)?|'[^']*'|TRUE|FALSE)$/.exec(c.check);
+    return m !== null && m[1] === c.name;
+  };
+  return t.columns.some((c) => pinned(c) && unique(c.name));
 }
 
 /** Pick up `col TYPE ...,  -- some note` comments; strip our own ⚠ markers. */
@@ -1015,7 +1044,7 @@ export class Reviewer {
   chkSingletons(): void {
     for (const name of (this.a.singleton_tables ?? []) as string[]) {
       const t = this.t.get(name);
-      if (!t) continue;
+      if (!t || oneRowGuard(t)) continue;
       const guard = t.indexes.some((ix) => ix.source !== 'pk' && ix.unique && !ix.where);
       this.add('singleton-table', 'info', name, [], 'Single-row configuration table',
         `\`${name}\` is documented as holding exactly one row. Nothing enforces that`

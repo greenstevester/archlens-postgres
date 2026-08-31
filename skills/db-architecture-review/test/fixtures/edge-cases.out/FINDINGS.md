@@ -129,7 +129,7 @@ PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `site
 CREATE INDEX CONCURRENTLY idx_region_lead_id ON region(lead_id);
 ```
 
-### F023 · region — Foreign-key cycle
+### F024 · region — Foreign-key cycle
 
 region → site → region. Rows must be inserted with a deferred constraint or a NULL-then-update dance; backups/restores and truncation have no valid order; ON DELETE CASCADE can loop.
 
@@ -155,7 +155,13 @@ CREATE INDEX CONCURRENTLY idx_site_org_id_region ON site(org_id, region);
 ALTER TABLE ticket ADD CONSTRAINT ticket_state_check CHECK (state IN (...));
 ```
 
-## Notes (8)
+## Notes (9)
+
+### F022 · app_config — Isolated table
+
+`app_config` references nothing and nothing references it. Either it is a staging/log table (fine, say so), or it is dead, or it is the seed of a second data model growing beside the first.
+
+**Fix:** Document its purpose or drop it.
 
 ### F008 · attachment `org_id` — Tenant FK relies on the default ON DELETE NO ACTION
 
@@ -173,13 +179,13 @@ Deleting a `org` row will fail while `attachment` rows exist. Fine if tenants ar
 ALTER TABLE org ALTER COLUMN created_at TYPE timestamptz;
 ```
 
-### F024 · org — Hub table: referenced by 5 tables
+### F025 · org — Hub table: referenced by 6 tables
 
 Any change to its key, its delete semantics, or its partitioning touches every dependent. Migrations on hub tables need the longest lock windows and the most careful rollout.
 
 **Fix:** Treat schema changes here as breaking changes with a written rollout plan.
 
-### F022 · profile — Single-row configuration table
+### F023 · profile — Single-row configuration table
 
 `profile` is documented as holding exactly one row. Nothing enforces that, and the day a second instance is needed (a second GitHub App, a staging vs prod config) every reader that does `SELECT * ... LIMIT 1` becomes wrong.
 
@@ -208,7 +214,7 @@ Deleting a `org` row will fail while `region` rows exist. Fine if tenants are ne
 
 **Fix:** Document its purpose or drop it.
 
-### F025 · widget — Wide table (30 columns)
+### F026 · widget — Wide table (30 columns)
 
 Tables this wide usually hide several entities (or a JSON column that wants to be one). Every row update rewrites the whole tuple; TOAST kicks in; indexes bloat.
 
