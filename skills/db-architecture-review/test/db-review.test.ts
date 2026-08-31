@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -542,5 +542,49 @@ describe('relationship notes for two foreign keys to one parent', () => {
     const f = new Reviewer(tables, n).run().filter((x) => x.check === 'undocumented-relationship');
     assert.match(f.find((x) => x.table === 'key_rotations')!.suggestion, /columns/);
     assert.doesNotMatch(f.find((x) => x.table === 'balances')!.suggestion, /columns/);
+  });
+});
+
+// Several foreign keys leaving one child used to print every edge label at the same height,
+// so the labels overprinted into a smudge above the box.
+describe('svgErd edge labels', () => {
+  it('gives a child with several foreign keys distinct label heights', async () => {
+    const ddl = `
+      CREATE TABLE pa (id UUID PRIMARY KEY);
+      CREATE TABLE pb (id UUID PRIMARY KEY);
+      CREATE TABLE pc (id UUID PRIMARY KEY);
+      CREATE TABLE kid (
+        id UUID PRIMARY KEY,
+        a_id UUID NOT NULL REFERENCES pa(id),
+        b_id UUID NOT NULL REFERENCES pb(id),
+        c_id UUID NOT NULL REFERENCES pc(id)
+      );`;
+    const { tables } = await parseSchema(ddl, 'inline');
+    const svg = svgErd(tables, [...tables.keys()], true);
+    const ys = [...svg.matchAll(/<text class="lbl" x="[0-9.]+" y="(-?[0-9.]+)"/g)].map((m) => Number(m[1]));
+    assert.equal(ys.length, 3);
+    assert.ok(new Set(ys).size >= 2, `label y values should not all coincide: ${ys}`);
+  });
+});
+
+// A domain removed from narratives.json used to leave its old page and diagram behind in
+// domains/, where they could get committed as if still current.
+describe('stale domain pages', () => {
+  it('removes domains .md and .svg files for domains no longer in narratives', async () => {
+    const { tables } = await parseSchema('CREATE TABLE tenants (id UUID PRIMARY KEY);', 'inline');
+    const dir = mkdtempSync(path.join(tmpdir(), 'db-review-stale-'));
+    try {
+      mkdirSync(path.join(dir, 'domains'), { recursive: true });
+      writeFileSync(path.join(dir, 'domains', 'old.md'), 'stale');
+      writeFileSync(path.join(dir, 'domains', 'old.svg'), '<svg/>');
+      writeFileSync(path.join(dir, 'domains', 'notes.txt'), 'keep');
+      const stats = { tables: 1, columns: 1, foreign_keys: 0, domains: 1, findings: { error: 0, warn: 0, info: 0 } };
+      writeMarkdown(dir, tables, { domains: [{ key: 'core', title: 'Core', tables: ['tenants'] }] }, [], stats);
+      assert.ok(!existsSync(path.join(dir, 'domains', 'old.md')), 'stale .md should be deleted');
+      assert.ok(!existsSync(path.join(dir, 'domains', 'old.svg')), 'stale .svg should be deleted');
+      assert.ok(existsSync(path.join(dir, 'domains', 'notes.txt')), 'unrelated files survive');
+      assert.ok(existsSync(path.join(dir, 'domains', 'core.md')));
+      assert.ok(existsSync(path.join(dir, 'domains', 'core.svg')));
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
