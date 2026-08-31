@@ -24,11 +24,12 @@ Flags: `--narratives` (optional; without it only the physical checks run), `--ou
 
 ### Testing
 
-`npm test` (`node --test`, no framework) runs `test/db-review.test.ts`, 76 tests in three groups.
+`npm test` (`node --test`, no framework) runs `test/db-review.test.ts`, 99 tests in four groups.
 
 1. Golden runs. The tool is executed on `examples/sample-schema.sql` (19 tables, every flaw marked `⚠ FLAW`, expected `findings: 8 error, 18 warn, 12 info`, exit 1) and on `test/fixtures/edge-cases.sql` (every construct the sample lacks: schema-qualified table, ALTER ADD/DROP COLUMN, CHECKs of every shape, partial and expression indexes, composite keys, a foreign-key cycle, a wide table, block comments, unparsed statements, table-level CHECKs as pg_dump writes them, a one-row table guarded by CHECK (id = 1), and the `\restrict` lines pg_dump emits; expected `9 error, 8 warn, 11 info`). Every output file is compared with the committed golden directory, ignoring only the `generated_at` line and the HTML "Generated ... on" date. The sample's FINDINGS.md and findings came from the Python original; its README.md, domains/*.md and index.html now carry sections the Python never wrote (whole-schema diagram, Relationships, SVG diagrams). The edge-case golden came from this tool after a diff against the Python on the same input showed only the script name and the row-value fallback differing.
 2. Model and findings. The parsed table model and the findings list are compared with `examples/out/schema.json` on their own, so a parse bug and a check bug fail different tests.
 3. The printer. `test/fixtures/expressions.sql` holds 54 CHECK/DEFAULT expressions; each rendering is asserted against what pglast printed for the same file. 52 match; row values and `COLLATE` hit the `…` fallback by design.
+4. Unit tests on single checks and renderers. Table-level CHECK attribution in both spellings, the singleton guard, the `\restrict` preamble with `source_line` intact, `svgErd()` (boxes, stubs, edge ends, self-reference, well-formedness, determinism), cross-domain Mermaid, `relationships()` and `describeRelationship()`, the `undocumented-relationship` finding, and the three writers.
 
 After touching a check or the printer, run `npm test`. If a golden test fails and the new output is what you intended, regenerate with `npm run review -- <schema> --narratives <narratives> --out <golden dir>` and read `git diff` on the golden directory before accepting it. A new finding on either fixture is a flaw you deliberately added to the schema or a false positive to fix.
 
