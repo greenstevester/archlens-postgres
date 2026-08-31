@@ -4,42 +4,7 @@ One provider-level GitHub App serves the whole portal; tenants map to it via ins
 
 Tenant-scoped: yes
 
-```mermaid
-erDiagram
-  github_app_config {
-    uuid id PK
-    bigint app_id
-    varchar_255 app_slug
-    varchar_255 client_id
-    text private_key_encrypted
-    text webhook_secret_encrypted
-    varchar_20 status
-    uuid created_by FK
-    timestamptz created_at
-    timestamptz updated_at
-  }
-  github_app_installation {
-    uuid id PK
-    uuid tenant_id FK
-    bigint installation_id
-    varchar_255 account_login
-    varchar_20 target_type
-    varchar_20 repository_selection
-    timestamptz suspended_at
-    timestamptz created_at
-  }
-  webhook_delivery {
-    bigserial id PK
-    uuid installation_id FK
-    uuid delivery_guid
-    varchar_64 event_type
-    jsonb payload
-    timestamptz received_at
-  }
-  users |o--o{ github_app_config : "created_by"
-  tenant ||--o{ github_app_installation : "tenant_id"
-  github_app_installation ||--o{ webhook_delivery : "installation_id"
-```
+![GitHub integration diagram](github.svg)
 
 ## Relationships
 

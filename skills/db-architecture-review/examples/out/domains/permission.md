@@ -4,32 +4,7 @@ Roles per tenant, the global permission catalogue, and the two junction tables t
 
 Tenant-scoped: yes
 
-```mermaid
-erDiagram
-  role {
-    uuid id PK
-    uuid tenant_id FK
-    varchar_100 name
-  }
-  permission {
-    uuid id PK
-    varchar_100 code UK
-  }
-  role_permission {
-    uuid role_id PK FK
-    uuid permission_id PK FK
-  }
-  user_role {
-    uuid user_id FK
-    uuid role_id FK
-    timestamptz granted_at
-  }
-  tenant ||--o{ role : "tenant_id"
-  role ||--o{ role_permission : "role_id"
-  permission ||--o{ role_permission : "permission_id"
-  users ||--o{ user_role : "user_id"
-  role ||--o{ user_role : "role_id"
-```
+![Permissions (RBAC) diagram](permission.svg)
 
 ## Relationships
 

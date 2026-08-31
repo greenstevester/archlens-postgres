@@ -88,12 +88,13 @@ Open Claude Code in the repo that owns the schema and ask for a review. Claude w
 
 ```
 docs/database/
-├── index.html      self-contained browsable docs, findings inline, filter box, an inline SVG diagram and a relationship list per domain
+├── index.html      self-contained browsable docs, findings inline, filter box, a whole-schema SVG diagram plus an inline SVG diagram and a relationship list per domain
 ├── schema.json     the model + findings (input for the judgment pass)
-├── README.md       markdown index with a whole-schema Mermaid diagram
+├── README.md       markdown index embedding the whole-schema diagram
+├── erd.svg         whole-schema entity-relationship diagram (plain SVG, renders anywhere)
 ├── FINDINGS.md     findings by severity, each with cause, effect and fix SQL
 ├── REVIEW.md       Claude's judgment pass: verdict, claims vs. enforcement, where the next change hurts
-└── domains/*.md    one page per domain with a Mermaid diagram and a Relationships list (facts + why)
+└── domains/        one .md page per domain with its own .svg diagram and a Relationships list (facts + why)
 ```
 
 ## The checks

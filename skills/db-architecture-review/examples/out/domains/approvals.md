@@ -4,48 +4,7 @@ Service requests and deployments that need sign-off, and the append-only audit t
 
 Tenant-scoped: yes
 
-```mermaid
-erDiagram
-  service_request {
-    uuid id PK
-    uuid tenant_id FK
-    varchar_255 title
-    timestamptz created_at
-  }
-  deployment {
-    uuid id PK
-    uuid tenant_id FK
-    varchar_255 target
-    timestamptz created_at
-  }
-  approval_request {
-    uuid id PK
-    uuid tenant_id FK
-    uuid service_request_id FK
-    uuid deployment_id FK
-    uuid requested_by FK
-    uuid approved_by FK
-    approval_state state
-    timestamptz created_at
-  }
-  audit_event {
-    bigserial id PK
-    uuid tenant_id FK
-    varchar_20 actor_type
-    uuid actor_id
-    varchar_100 action
-    timestamp occurred_at
-    jsonb detail
-  }
-  tenant ||--o{ service_request : "tenant_id"
-  tenant ||--o{ deployment : "tenant_id"
-  tenant ||--o{ approval_request : "tenant_id"
-  service_request |o--o{ approval_request : "service_request_id"
-  deployment |o--o{ approval_request : "deployment_id"
-  users ||--o{ approval_request : "requested_by"
-  users |o--o{ approval_request : "approved_by"
-  tenant ||--o{ audit_event : "tenant_id"
-```
+![Approvals & audit diagram](approvals.svg)
 
 ## Relationships
 

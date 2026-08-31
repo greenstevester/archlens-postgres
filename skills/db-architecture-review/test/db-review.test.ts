@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
-  Reviewer, describeRelationship, escapeHtml, mermaidErd, parseSchema, relationships, svgErd, writeHtml, writeMarkdown,
+  Reviewer, describeRelationship, escapeHtml, parseSchema, relationships, svgErd, writeHtml, writeMarkdown,
   type Finding, type Table,
 } from '../scripts/db-review.ts';
 
@@ -46,6 +46,16 @@ function goldenRun(name: string, schema: string, narratives: string, golden: str
       assert.match(String(run.stdout), summary);
     });
 
+    // The ratchet: no output file may mention Mermaid, ever again.
+    it('emits no Mermaid in any output file', () => {
+      const written = readdirSync(out, { recursive: true, withFileTypes: true })
+        .filter((d) => d.isFile()).map((d) => path.join(d.parentPath, d.name));
+      assert.ok(written.length >= files.length);
+      for (const f of written) {
+        assert.ok(!readFileSync(f, 'utf8').toLowerCase().includes('mermaid'), `${f} mentions Mermaid`);
+      }
+    });
+
     for (const file of files) {
       it(`writes ${file} identical to ${golden}`, () => {
         assert.equal(stable(read(path.join(out, file))), stable(read(path.join(golden, file))));
@@ -61,8 +71,10 @@ function goldenRun(name: string, schema: string, narratives: string, golden: str
 // index.html were added by this tool after the port; FINDINGS.md and the findings still match.
 goldenRun('sample schema (golden: examples/out)',
   'examples/sample-schema.sql', 'examples/narratives.json', 'examples/out',
-  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'domains/tenant.md', 'domains/auth.md',
-    'domains/permission.md', 'domains/github.md', 'domains/approvals.md', 'domains/billing.md'],
+  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'erd.svg', 'domains/tenant.md', 'domains/auth.md',
+    'domains/permission.md', 'domains/github.md', 'domains/approvals.md', 'domains/billing.md',
+    'domains/tenant.svg', 'domains/auth.svg', 'domains/permission.svg', 'domains/github.svg',
+    'domains/approvals.svg', 'domains/billing.svg'],
   /findings: 8 error, 18 warn, 12 info/, 1);
 
 // The edge-case fixture covers what the sample lacks: a schema-qualified table, ALTER TABLE
@@ -79,7 +91,8 @@ goldenRun('sample schema (golden: examples/out)',
 // which the printer renders as "…(name, kind) IS DISTINCT FROM …" (see the fallback cases below).
 goldenRun('edge-case fixture (golden: test/fixtures/edge-cases.out)',
   'test/fixtures/edge-cases.sql', 'test/fixtures/edge-cases.narratives.json', 'test/fixtures/edge-cases.out',
-  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'domains/core.md', 'domains/work.md'],
+  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'erd.svg', 'domains/core.md', 'domains/work.md',
+    'domains/core.svg', 'domains/work.svg'],
   /findings: 9 error, 8 warn, 11 info/, 1);
 
 describe('parseSchema', () => {
@@ -349,12 +362,6 @@ describe('informer', () => {
     });
   });
 
-  describe('mermaidErd', () => {
-    it('draws a relationship to a parent outside the domain instead of dropping it', () => {
-      assert.match(mermaidErd(tables, ['widget']), /org \|\|--o\{ widget : "org_id"/);
-    });
-  });
-
   describe('relationships', () => {
     it('states the mechanical facts of each foreign key in words', () => {
       const r = relationships(tables.get('widget')!, narratives).find((x) => x.parent === 'org')!;
@@ -396,8 +403,9 @@ describe('informer', () => {
   });
 });
 
-// The writers carry the informer output: a whole-schema diagram in README.md, a Relationships
-// section per domain in the markdown, and an inline SVG diagram plus the same list in index.html.
+// The writers carry the informer output: a whole-schema SVG diagram in index.html and as erd.svg
+// next to README.md, one .svg per domain, a Relationships section per domain in the markdown, and
+// an inline SVG diagram plus the same list in index.html.
 describe('informer output', () => {
   const ddl = `
     CREATE TABLE org (id BIGINT PRIMARY KEY, name TEXT NOT NULL);
@@ -411,24 +419,63 @@ describe('informer output', () => {
     ],
     assertions: { cardinality: [{ parent: 'org', child: 'widget', expect: '1:N', why: 'a widget is built by one organisation' }] },
   };
+  const stats = { tables: 3, columns: 6, foreign_keys: 2, domains: 2, findings: { error: 0, warn: 0, info: 0 } };
+  let tables: Map<string, Table>;
   let out = '';
   const file = (p: string): string => readFileSync(path.join(out, p), 'utf8');
+  const count = (s: string, re: RegExp): number => (s.match(re) ?? []).length;
 
   before(async () => {
-    const { tables } = await parseSchema(ddl, 'inline');
+    ({ tables } = await parseSchema(ddl, 'inline'));
     const findings = new Reviewer(tables, narratives).run();
-    const stats = { tables: 3, columns: 6, foreign_keys: 2, domains: 2, findings: { error: 0, warn: 0, info: 0 } };
     out = mkdtempSync(path.join(tmpdir(), 'db-review-informer-'));
     writeMarkdown(out, tables, narratives, findings, stats);
     writeHtml(out, tables, narratives, findings, stats, 'inline');
   });
   after(() => rmSync(out, { recursive: true, force: true }));
 
-  it('puts a whole-schema Mermaid diagram in README.md', () => {
-    const readme = file('README.md');
-    assert.match(readme, /## Diagram\n\n```mermaid\nerDiagram\n/);
-    assert.match(readme, /org \|\|--o\{ widget : "org_id"/);
-    assert.match(readme, /widget \|o--o\{ note : "widget_id"/);
+  it('writes a standalone erd.svg and links it from README.md as the Diagram section', () => {
+    assert.match(file('README.md'), /## Diagram\n\n!\[Entity-relationship diagram\]\(erd\.svg\)\n/);
+    assert.match(file('erd.svg'), /^<svg class="erd"/);
+  });
+
+  it('writes one .svg per domain and embeds it in the domain page', () => {
+    assert.match(file('domains/core.md'), /!\[Core diagram\]\(core\.svg\)/);
+    assert.match(file('domains/work.md'), /!\[Work diagram\]\(work\.svg\)/);
+    assert.match(file('domains/core.svg'), /^<svg class="erd"/);
+    assert.match(file('domains/work.svg'), /^<svg class="erd"/);
+  });
+
+  it('writes standalone .svg files that are well-formed, self-contained and deterministic', () => {
+    const svg = file('erd.svg');
+    assert.ok(!svg.includes('var(--'), 'a standalone .svg must not depend on page CSS variables');
+    assert.match(svg, /<style>/);
+    assert.equal(count(svg, /<g\b/g), count(svg, /<\/g>/g));
+    assert.equal(svg, `${svgErd(tables, [...tables.keys()], true)}\n`);
+  });
+
+  it('puts the whole-schema SVG section above the domain sections in index.html', () => {
+    const html = file('index.html');
+    const schema = html.indexOf('<section id="schema">');
+    assert.notEqual(schema, -1);
+    assert.ok(schema < html.indexOf('<section class="domain"'));
+    assert.equal(count(html, /<svg class="erd"/g), 3);
+  });
+
+  it('bare run (no narratives): index.html still carries a whole-schema SVG with one box per table', async () => {
+    const { tables: bare } = await parseSchema(ddl, 'inline');
+    const dir = mkdtempSync(path.join(tmpdir(), 'db-review-bare-'));
+    try {
+      writeMarkdown(dir, bare, {}, [], stats);
+      writeHtml(dir, bare, {}, [], stats, 'inline');
+      const html = readFileSync(path.join(dir, 'index.html'), 'utf8');
+      assert.match(html, /<section id="schema">/);
+      assert.equal(count(html, /<svg class="erd"/g), 1);
+      assert.equal(count(html, /<g class="tbl"/g), 3);
+      assert.match(readFileSync(path.join(dir, 'erd.svg'), 'utf8'), /^<svg class="erd"/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('writes a Relationships section per domain with the facts and the why', () => {
@@ -440,9 +487,8 @@ describe('informer output', () => {
 
   it('puts an inline SVG diagram and the relationship list in each HTML domain section', () => {
     const html = file('index.html');
-    assert.equal((html.match(/<svg class="erd"/g) ?? []).length, 2);
     assert.match(html, /<ul class="rels">.*<code>widget\.org_id<\/code> → <a href="#t-org">org<\/a>\.id.*a widget is built by one organisation/s);
-    assert.ok(!html.includes('mermaid'));
+    assert.ok(!html.toLowerCase().includes('mermaid'));
     assert.equal((html.match(/<h3 class="rels-h">Relationships<\/h3>/g) ?? []).length, 2, "one heading per domain, above the list or the no-foreign-keys fallback");
   });
 });
