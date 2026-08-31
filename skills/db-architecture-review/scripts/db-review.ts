@@ -1243,9 +1243,12 @@ const ERD = { charW: 7.2, rowH: 18, headH: 28, pad: 10, gapX: 48, gapY: 76, marg
 
 // Literal palette for standalone .svg files: the light half of the page palette, light background,
 // dark strokes, no var(--) references — an .svg on disk inherits nothing.
+// ponytail: this is a hand-kept copy of the page's .erd rules below (hex for var(--…)); a tweak
+// to one must be made in the other. One token map rendered twice is the upgrade if it drifts.
 const ERD_STYLE = 'svg{font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}'
   + '.bg{fill:#fbfaf7}.bx{fill:#ffffff;stroke:#1d2430;stroke-width:1.2}.hd{fill:#e2ddd3}'
   + '.stub .bx{stroke:#6b7280;stroke-dasharray:4 3}.stub .hd{fill:none}'
+  + '.lbl{paint-order:stroke;stroke:#fbfaf7;stroke-width:3}'
   + '.ttl{font-weight:700;fill:#1d2430}.col{fill:#1d2430}.typ,.lbl{fill:#6b7280;font-size:11px}'
   + '.key{fill:#1f5f8b;font-weight:700;font-size:10px}'
   + '.ln,.end path{fill:none;stroke:#1d2430;stroke-width:1.2}'
@@ -1356,10 +1359,18 @@ export function svgErd(tables: Map<string, Table>, names: string[], standalone =
 
   const inbound = new Map<string, number>();
   let channels = 0;               // edges routed down the right-hand side, each in its own lane
+  // Labels near a child's top edge are placed only after every edge is drawn, so each can dodge
+  // the other labels of its row and the lines and markers that cross the label area.
+  type PendingLabel = { g: number; x: number; w: number; top: number; label: string };
+  const pending: PendingLabel[] = [];
+  const obstacles = new Map<string, { x0: number; x1: number }[]>();
+  const block = (g: number, band: number, x0: number, x1: number): void => {
+    const k = `${g}:${band}`;
+    obstacles.set(k, [...(obstacles.get(k) ?? []), { x0, x1 }]);
+  };
   for (const n of inSet) {
     const t = tables.get(n)!;
     const child = boxes.get(n)!;
-    const lblEnd = [-Infinity, -Infinity, -Infinity]; // rightmost label edge per height band
     t.fks.forEach((fk, i) => {
       const parent = boxes.get(fk.ref_table)!;
       const pEnd = fk.nullable ? 'zero-one' : 'one';
@@ -1397,16 +1408,22 @@ export function svgErd(tables: Map<string, Table>, names: string[], standalone =
           const down = gapMid(parent.layer, parent.layer + 1);
           path = `M${cx},${child.y} V${up} H${xr} V${down} H${px} V${py}`;
           maxX = Math.max(maxX, xr);
+          for (let g = parent.layer + 1; g <= child.layer; g += 1) {
+            block(g, 1, xr - 2, xr + 2);
+            block(g, 2, xr - 2, xr + 2);
+            if (g < child.layer) block(g, 0, xr - 2, xr + 2);
+          }
         }
         ends = erdEnd(cEnd, cx, child.y, -90, 'c') + erdEnd(pEnd, px, py, 90, 'p');
-        // Three label heights: below the horizontal edge runs, and two above them, clear of the
-        // parent row's markers. Each label takes the first height whose previous label has ended.
-        // ponytail: when all three are occupied the least-crowded height takes the spill and two
-        // labels can touch; flipping text-anchor or an ellipsis is the upgrade if it reads badly.
-        let band = lblEnd.findIndex((endX) => cx + 5 >= endX);
-        if (band === -1) band = lblEnd.indexOf(Math.min(...lblEnd));
-        lblEnd[band] = cx + 5 + label.length * ERD.charW;
-        text = `<text class="lbl" x="${cx + 5}" y="${child.y - 20 - [0, 24, 36][band]}">${e(label)}</text>`;
+        // The label is placed after every edge is drawn (see the placement pass below); record
+        // it, and what its row's label area must dodge: this edge's own vertical next to the
+        // child (lowest height), and its parent-side vertical and marker (upper two heights).
+        pending.push({ g: child.layer, x: cx + 5, w: label.length * ERD.charW, top: child.y, label });
+        block(child.layer, 0, cx - 2, cx + 2);
+        block(child.layer, 1, px - 2, px + 2);
+        block(child.layer, 2, px - 2, px + 2);
+        if (pEnd === 'zero-one') { block(child.layer, 1, px - 6, px + 6); block(child.layer, 2, px - 6, px + 6); }
+        text = '';
       } else {
         // Cycle or same row: route around the right of both boxes.
         const xr = Math.max(child.x + child.w, parent.x + parent.w) + ERD.loop;
@@ -1421,6 +1438,27 @@ export function svgErd(tables: Map<string, Table>, names: string[], standalone =
     });
   }
 
+  // The placement pass: per row, three label heights — one below the horizontal edge runs and
+  // two above them. Each label takes the first height where nothing occupies its span.
+  // ponytail: when all three heights are blocked the least-crowded one takes the spill and two
+  // things can touch; flipping text-anchor or an ellipsis is the upgrade if it reads badly.
+  if (pending.length) {
+    const placed: string[] = [];
+    const overlap = (list: { x0: number; x1: number }[], x0: number, x1: number): number =>
+      list.reduce((o, iv) => o + Math.max(0, Math.min(iv.x1, x1) - Math.max(iv.x0, x0)), 0);
+    for (const p of pending.sort((a, c) => a.g - c.g || a.x - c.x)) {
+      const spans = [0, 1, 2].map((b) => obstacles.get(`${p.g}:${b}`) ?? []);
+      const cost = spans.map((list) => overlap(list, p.x, p.x + p.w));
+      let band = cost.findIndex((o) => o === 0);
+      if (band === -1) band = cost.reduce((best, o, b, all) => (o < all[best] ? b : best), 0);
+      spans[band].push({ x0: p.x, x1: p.x + p.w });
+      obstacles.set(`${p.g}:${band}`, spans[band]);
+      placed.push(`<text class="lbl" x="${p.x}" y="${p.top - 20 - [0, 24, 36][band]}">${e(p.label)}</text>`);
+      maxX = Math.max(maxX, p.x + p.w);
+    }
+    out.push(`<g class="lbls">${placed.join('')}</g>`);
+  }
+
   const W = Math.ceil(maxX + ERD.margin);
   const title = `Entity-relationship diagram: ${inSet.join(', ')}`;
   const own = standalone ? `<style>${ERD_STYLE}</style><rect class="bg" width="${W}" height="${H}"/>` : '';
@@ -1432,11 +1470,14 @@ export function writeMarkdown(outdir: string, tables: Map<string, Table>, narrat
   const domains = (narratives.domains ?? []) as Narratives[];
   mkdirSync(path.join(outdir, 'domains'), { recursive: true });
   // A domain removed from narratives.json must take its page and diagram with it, or a stale
-  // domains/<key>.md survives reruns and gets committed as if still current.
+  // domains/<key>.md survives reruns and gets committed as if still current. A run given no
+  // domains at all (physical checks only) reconciles nothing: it must not delete the docs an
+  // earlier narratives run wrote.
   const domainKeys = new Set(domains.map((d) => d.key as string));
-  for (const f of readdirSync(path.join(outdir, 'domains'))) {
-    if ((f.endsWith('.md') || f.endsWith('.svg')) && !domainKeys.has(f.replace(/\.(md|svg)$/, ''))) {
-      unlinkSync(path.join(outdir, 'domains', f));
+  if (domainKeys.size) {
+    for (const f of readdirSync(path.join(outdir, 'domains'))) {
+      const m = f.match(/^(.*)\.(md|svg)$/);
+      if (m && !domainKeys.has(m[1])) unlinkSync(path.join(outdir, 'domains', f));
     }
   }
   const db = narratives.database ?? {};
@@ -1532,7 +1573,7 @@ const CSS = `
 @media(prefers-color-scheme:dark){:root{--bg:#171a1f;--ink:#e6e3dc;--mute:#9aa0a8;--rule:#2c313a;--panel:#1e232a;--acc:#7cb3e0;--err:#f28b82;--warn:#f2c14e;--info:#8fb8ea;--errbg:#3a2220;--warnbg:#3a3220;--infobg:#1f2c3a}}
 .erd-wrap{overflow-x:auto;margin:12px 0}.erd{max-width:100%;height:auto;font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .erd .bx{fill:var(--panel);stroke:var(--ink);stroke-width:1.2}.erd .hd{fill:var(--rule)}.erd .stub .bx{stroke:var(--mute);stroke-dasharray:4 3}.erd .stub .hd{fill:none}
-.erd .ttl{font-weight:700;fill:var(--ink)}.erd .col{fill:var(--ink)}.erd .typ,.erd .lbl{fill:var(--mute);font-size:11px}.erd .key{fill:var(--acc);font-weight:700;font-size:10px}
+.erd .ttl{font-weight:700;fill:var(--ink)}.erd .col{fill:var(--ink)}.erd .typ,.erd .lbl{fill:var(--mute);font-size:11px}.erd .lbl{paint-order:stroke;stroke:var(--bg);stroke-width:3}.erd .key{fill:var(--acc);font-weight:700;font-size:10px}
 .erd .ln,.erd .end path{fill:none;stroke:var(--ink);stroke-width:1.2}.erd .end circle{fill:var(--panel);stroke:var(--ink);stroke-width:1.2}
 .rels{list-style:none;padding:0;margin:8px 0 16px}.rels li{padding:6px 0;border-bottom:1px solid var(--rule)}.rels .why{font-style:italic}
 .rels-h{margin:18px 0 2px}

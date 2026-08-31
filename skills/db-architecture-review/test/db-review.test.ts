@@ -581,6 +581,21 @@ describe('svgErd edge labels', () => {
 // A domain removed from narratives.json used to leave its old page and diagram behind in
 // domains/, where they could get committed as if still current.
 describe('stale domain pages', () => {
+  it('leaves existing domain files alone when the run has no domains at all', async () => {
+    const { tables } = await parseSchema('CREATE TABLE tenants (id UUID PRIMARY KEY);', 'inline');
+    const dir = mkdtempSync(path.join(tmpdir(), 'db-review-bare-keep-'));
+    try {
+      mkdirSync(path.join(dir, 'domains'), { recursive: true });
+      writeFileSync(path.join(dir, 'domains', 'tenant.md'), 'committed doc');
+      writeFileSync(path.join(dir, 'domains', 'tenant.svg'), '<svg/>');
+      const stats = { tables: 1, columns: 1, foreign_keys: 0, domains: 0, findings: { error: 0, warn: 0, info: 0 } };
+      writeMarkdown(dir, tables, {}, [], stats);
+      assert.ok(existsSync(path.join(dir, 'domains', 'tenant.md')),
+        'a bare run must not delete docs from an earlier narratives run');
+      assert.ok(existsSync(path.join(dir, 'domains', 'tenant.svg')));
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
   it('removes domains .md and .svg files for domains no longer in narratives', async () => {
     const { tables } = await parseSchema('CREATE TABLE tenants (id UUID PRIMARY KEY);', 'inline');
     const dir = mkdtempSync(path.join(tmpdir(), 'db-review-stale-'));
@@ -597,5 +612,76 @@ describe('stale domain pages', () => {
       assert.ok(existsSync(path.join(dir, 'domains', 'core.md')));
       assert.ok(existsSync(path.join(dir, 'domains', 'core.svg')));
     } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+// Labels must not collide with anything drawn near them: another label at the same height,
+// a sibling edge's vertical segment, or a zero-one circle marker. Widths are estimated at
+// ERD.charW (7.2) per character; glyphs extend 9px up from the baseline.
+describe('svgErd label collisions', () => {
+  const build = async (ddl: string): Promise<string> => {
+    const { tables } = await parseSchema(ddl, 'inline');
+    return svgErd(tables, [...tables.keys()], true);
+  };
+  const lblBoxes = (svg: string) =>
+    [...svg.matchAll(/<text class="lbl" x="([0-9.]+)" y="(-?[0-9.]+)">([^<]+)</g)]
+      .map((m) => ({ x0: Number(m[1]), x1: Number(m[1]) + m[3].length * 7.2,
+        y0: Number(m[2]) - 9, y1: Number(m[2]), text: m[3] }));
+  // Labels may not overlap each other. A line is allowed to pass a label's box, because every
+  // label paints a background-coloured halo behind its glyphs (paint-order: stroke), so the
+  // line breaks behind the text instead of striking through it — asserted separately below.
+  const assertClean = (svg: string): void => {
+    const boxes = lblBoxes(svg);
+    for (const a of boxes) {
+      for (const b of boxes) {
+        if (a !== b && a.y1 === b.y1 && a.x0 <= b.x0) {
+          assert.ok(a.x1 <= b.x0, `label "${a.text}" overlaps label "${b.text}" at y=${a.y1}`);
+        }
+      }
+    }
+    assert.match(svg, /\.lbl\{[^}]*paint-order:stroke/,
+      'labels must carry the background halo that keeps crossing lines behind the text');
+  };
+
+  it('keeps labels of adjacent children in one layer apart', async () => {
+    assertClean(await build(`
+      CREATE TABLE p_one (a UUID, b UUID, PRIMARY KEY (a, b));
+      CREATE TABLE p_two (id UUID PRIMARY KEY);
+      CREATE TABLE kid_a (
+        id UUID PRIMARY KEY,
+        long_column_name_one UUID NOT NULL,
+        long_column_name_two UUID NOT NULL,
+        FOREIGN KEY (long_column_name_one, long_column_name_two) REFERENCES p_one (a, b)
+      );
+      CREATE TABLE kid_b (id UUID PRIMARY KEY, x_id UUID REFERENCES p_two(id));`));
+  });
+
+  it('extends the drawing width to fit the longest label', async () => {
+    const svg = await build(`
+      CREATE TABLE p_one (id UUID PRIMARY KEY);
+      CREATE TABLE p_two (id UUID PRIMARY KEY);
+      CREATE TABLE kid_a (id UUID PRIMARY KEY, a_id UUID REFERENCES p_one(id));
+      CREATE TABLE kid_b (id UUID PRIMARY KEY,
+        the_very_long_reference_identifier_column UUID REFERENCES p_two(id));`);
+    const w = Number(svg.match(/viewBox="0 0 ([0-9.]+) /)![1]);
+    for (const b of lblBoxes(svg)) {
+      assert.ok(b.x1 <= w, `label "${b.text}" ends at ${b.x1} past the drawing width ${w}`);
+    }
+  });
+
+  it('keeps sibling verticals and circle markers out of label text', async () => {
+    assertClean(await build(`
+      CREATE TABLE p_one (id UUID PRIMARY KEY);
+      CREATE TABLE p_two (id UUID PRIMARY KEY);
+      CREATE TABLE kid_a (
+        id UUID PRIMARY KEY,
+        long_column_name_one UUID NOT NULL REFERENCES p_one(id),
+        long_column_name_two UUID NOT NULL REFERENCES p_two(id)
+      );
+      CREATE TABLE kid_b (
+        id UUID PRIMARY KEY,
+        x_id UUID REFERENCES p_one(id),
+        the_very_long_reference_identifier_column UUID REFERENCES p_two(id)
+      );`));
   });
 });
