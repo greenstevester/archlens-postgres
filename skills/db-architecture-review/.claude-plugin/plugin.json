@@ -1,6 +1,6 @@
 {
   "name": "db-architecture-review",
-  "version": "1.3.2",
+  "version": "1.4.0",
   "description": "Document a PostgreSQL schema and review its logical and physical design in one run",
   "author": {
     "name": "greenstevester"
