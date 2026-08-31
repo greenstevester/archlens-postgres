@@ -20,8 +20,16 @@ erDiagram
     timestamp expires_at
     timestamptz created_at
   }
+  tenant ||--o{ users : "tenant_id"
   users ||--o{ sessions : "user_id"
 ```
+
+## Relationships
+
+- `users.tenant_id` → `tenant.id` — one tenant, many users · required · ON DELETE CASCADE · indexed  
+  why: people belong to the tenant that invited them; the same email in two tenants is two users
+- `sessions.user_id` → `users.id` — one users, many sessions · required · ON DELETE CASCADE · not indexed  
+  why: not documented
 
 ## users
 

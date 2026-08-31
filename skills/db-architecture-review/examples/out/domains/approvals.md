@@ -37,9 +37,34 @@ erDiagram
     timestamp occurred_at
     jsonb detail
   }
+  tenant ||--o{ service_request : "tenant_id"
+  tenant ||--o{ deployment : "tenant_id"
+  tenant ||--o{ approval_request : "tenant_id"
   service_request |o--o{ approval_request : "service_request_id"
   deployment |o--o{ approval_request : "deployment_id"
+  users ||--o{ approval_request : "requested_by"
+  users |o--o{ approval_request : "approved_by"
+  tenant ||--o{ audit_event : "tenant_id"
 ```
+
+## Relationships
+
+- `service_request.tenant_id` → `tenant.id` — one tenant, many service_request · required · ON DELETE CASCADE · indexed  
+  why: not documented
+- `deployment.tenant_id` → `tenant.id` — one tenant, many deployment · required · ON DELETE CASCADE · indexed  
+  why: not documented
+- `approval_request.tenant_id` → `tenant.id` — one tenant, many approval_request · required · ON DELETE CASCADE · indexed  
+  why: not documented
+- `approval_request.service_request_id` → `service_request.id` — one service_request, many approval_request · optional · ON DELETE NO ACTION · not indexed  
+  why: not documented
+- `approval_request.deployment_id` → `deployment.id` — one deployment, many approval_request · optional · ON DELETE NO ACTION · not indexed  
+  why: not documented
+- `approval_request.requested_by` → `users.id` — one users, many approval_request · required · ON DELETE NO ACTION · indexed  
+  why: not documented
+- `approval_request.approved_by` → `users.id` — one users, many approval_request · optional · ON DELETE NO ACTION · not indexed  
+  why: not documented
+- `audit_event.tenant_id` → `tenant.id` — one tenant, many audit_event · required · ON DELETE NO ACTION · indexed  
+  why: not documented
 
 ## service_request
 

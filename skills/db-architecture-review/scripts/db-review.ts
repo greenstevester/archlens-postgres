@@ -698,7 +698,7 @@ export class Reviewer {
   run(): Finding[] {
     for (const fn of [this.chkDomainCoverage, this.chkPrimaryKey, this.chkFkIndex,
       this.chkFkNullable, this.chkFkDeleteAction, this.chkCardinalityAssertions,
-      this.chkNaturalKeys, this.chkJunctionTables, this.chkEnumish,
+      this.chkRelationshipNotes, this.chkNaturalKeys, this.chkJunctionTables, this.chkEnumish,
       this.chkSoftDeleteUnique, this.chkPolymorphic, this.chkExclusiveArc,
       this.chkTimestamps, this.chkMoney, this.chkTenantScoping, this.chkRls,
       this.chkOrphans, this.chkSingletons, this.chkFkCycles, this.chkBlastRadius,
@@ -803,7 +803,7 @@ export class Reviewer {
       const fks = child.fks.filter((fk) => fk.ref_table === a.parent);
       if (!fks.length) {
         this.add('cardinality', 'error', a.child, [], 'Asserted relationship has no foreign key',
-          `narratives.json says \`${a.parent}\` → \`${a.child}\` is ${a.expect}, but there is `
+          `narratives.json says \`${a.parent}\` → \`${a.child}\` ${a.expect ? `is ${a.expect}` : 'exists'}, but there is `
           + 'no FK from the child to the parent. The relationship exists only in application code.',
           'Add the FK, or correct the narrative.');
         continue;
@@ -825,6 +825,21 @@ export class Reviewer {
             + 'UNIQUE, so the second child will fail to insert.',
             'Drop the unique constraint, or fix the narrative.');
         }
+      }
+    }
+  }
+
+  chkRelationshipNotes(): void {
+    if (!this.a.require_relationship_notes) return;
+    for (const t of this.t.values()) {
+      for (const r of relationships(t, this.n)) {
+        if (r.why) continue;
+        const cols = r.columns.join(', ');
+        this.add('undocumented-relationship', 'info', t.name, r.columns, 'Relationship has no narrative',
+          `\`${t.name}.${cols}\` → \`${r.parent}\` is ${describeRelationship(r)}, but narratives.json `
+          + 'does not say why the relationship exists, so the docs show the constraint and nothing else.',
+          `Add a \`why\` to the \`${r.parent}\` → \`${t.name}\` entry in assertions.cardinality `
+          + '(create the entry if it is missing; `expect` is optional).');
       }
     }
   }
@@ -1195,13 +1210,217 @@ export function mermaidErd(tables: Map<string, Table>, names: string[]): string 
     const t = tables.get(n);
     if (!t) continue;
     for (const fk of t.fks) {
-      if (!names.includes(fk.ref_table)) continue;
+      // A parent outside the set still gets its line; Mermaid draws it as an attribute-less entity.
       const left = fk.nullable ? '|o' : '||';
       const right = fk.unique ? '||' : 'o{';
       out.push(`  ${fk.ref_table} ${left}--${right} ${n} : "${fk.columns.join(', ')}"`);
     }
   }
   return out.join('\n');
+}
+
+export interface Relationship {
+  child: string;
+  columns: string[];
+  parent: string;
+  ref_columns: string[];
+  cardinality: string;
+  required: boolean;
+  on_delete: string;
+  indexed: boolean;
+  why: string | null;
+}
+
+/** One entry per foreign key of `t`: what the schema enforces, plus the `why` from the matching
+ *  `assertions.cardinality` entry in narratives.json when someone has written one. */
+export function relationships(t: Table, narratives: Narratives | null | undefined): Relationship[] {
+  const notes = ((narratives?.assertions ?? {}).cardinality ?? []) as Narratives[];
+  return t.fks.map((fk) => {
+    const note = notes.find((a) => a.parent === fk.ref_table && a.child === t.name
+      && typeof a.why === 'string' && a.why.trim() !== '');
+    return {
+      child: t.name, columns: fk.columns, parent: fk.ref_table, ref_columns: fk.ref_columns,
+      cardinality: fk.cardinality, required: !fk.nullable, on_delete: fk.on_delete, indexed: fk.indexed,
+      why: note ? (note.why as string).trim() : null,
+    };
+  });
+}
+
+/** The enforced facts of a relationship in words: `one org, many widget · required · ON DELETE CASCADE · indexed`. */
+export function describeRelationship(r: Relationship): string {
+  const shape = r.cardinality === '1:1' ? `one ${r.parent}, at most one ${r.child}` : `one ${r.parent}, many ${r.child}`;
+  return `${shape} · ${r.required ? 'required' : 'optional'} · ON DELETE ${r.on_delete} · ${r.indexed ? 'indexed' : 'not indexed'}`;
+}
+
+// Diagram geometry, in px. Text widths come from character counts, so the output is deterministic
+// and needs no font metrics; the page CSS gives the classes their colours.
+const ERD = { charW: 7.2, rowH: 18, headH: 28, pad: 10, gapX: 48, gapY: 76, margin: 24, minW: 120, loop: 26 };
+
+interface ErdBox {
+  name: string;
+  stub: boolean;
+  columns: Column[];
+  w: number;
+  h: number;
+  x: number;
+  y: number;
+  layer: number;
+}
+
+/** Crow's-foot glyph for one end of an edge, drawn at the box edge with +x pointing along the line. */
+function erdEnd(kind: string, x: number, y: number, angle: number, side: string): string {
+  const paths: Record<string, string> = {
+    one: 'M8,-6 L8,6',
+    'zero-one': 'M8,-6 L8,6',
+    many: 'M0,-6 L12,0 M0,0 L12,0 M0,6 L12,0',
+  };
+  const circle = kind === 'zero-one' ? '<circle cx="18" cy="0" r="4"/>' : '';
+  return `<g class="end ${side}-${kind}" transform="translate(${x},${y}) rotate(${angle})"><path d="${paths[kind]}"/>${circle}</g>`;
+}
+
+/** An entity-relationship diagram of `names` as self-contained SVG: every named table in full,
+ *  a stub box for each parent referenced from outside the set, and one edge per foreign key
+ *  with crow's-foot ends derived from the schema. Parents sit above children. */
+export function svgErd(tables: Map<string, Table>, names: string[]): string {
+  const e = escapeHtml;
+  const inSet = names.filter((n) => tables.has(n));
+  const stubs = [...new Set(inSet.flatMap((n) => tables.get(n)!.fks.map((fk) => fk.ref_table)))]
+    .filter((p) => !inSet.includes(p)).sort();
+
+  const boxes = new Map<string, ErdBox>();
+  const boxFor = (name: string, stub: boolean, columns: Column[]): ErdBox => {
+    const textW = Math.max(name.length + 2, ...columns.map((c) => c.name.length + c.type.length + 7));
+    return {
+      name, stub, columns, layer: 0, x: 0, y: 0,
+      w: Math.max(ERD.minW, Math.ceil(textW * ERD.charW) + 2 * ERD.pad),
+      h: ERD.headH + (stub ? 0 : columns.length * ERD.rowH + ERD.pad),
+    };
+  };
+  for (const n of inSet) boxes.set(n, boxFor(n, false, tables.get(n)!.columns));
+  for (const s of stubs) boxes.set(s, boxFor(s, true, []));
+
+  // Layer = longest parent chain inside the set; a cycle is cut where it closes.
+  const visiting = new Set<string>();
+  const layerOf = (n: string): number => {
+    const b = boxes.get(n)!;
+    if (b.stub) return 0;
+    if (visiting.has(n)) return 0;
+    visiting.add(n);
+    const parents = tables.get(n)!.fks.map((fk) => fk.ref_table).filter((p) => p !== n && boxes.has(p));
+    b.layer = parents.reduce((m, p) => Math.max(m, layerOf(p) + 1), 0);
+    visiting.delete(n);
+    return b.layer;
+  };
+  for (const n of inSet) layerOf(n);
+
+  const layers = new Map<number, ErdBox[]>();
+  for (const b of [...boxes.values()].sort((a, c) => (a.name < c.name ? -1 : 1))) {
+    layers.set(b.layer, [...(layers.get(b.layer) ?? []), b]);
+  }
+  // Rows of boxes, parents above children. layerTop/layerBottom describe each row's extent, so
+  // an edge's horizontal run always sits in the empty gap between two rows, never across a box.
+  const layerTop: number[] = [];
+  const layerBottom: number[] = [];
+  let y = ERD.margin;
+  let width = 0;
+  for (const l of [...layers.keys()].sort((a, c) => a - c)) {
+    let x = ERD.margin;
+    let rowH = 0;
+    for (const b of layers.get(l)!) {
+      b.x = x;
+      b.y = y;
+      x += b.w + ERD.gapX;
+      rowH = Math.max(rowH, b.h);
+    }
+    width = Math.max(width, x - ERD.gapX);
+    layerTop[l] = y;
+    layerBottom[l] = y + rowH;
+    y += rowH + ERD.gapY;
+  }
+  const gapMid = (upper: number, lower: number): number => (layerBottom[upper] + layerTop[lower]) / 2;
+  let maxX = width;
+  const H = Math.ceil(y - ERD.gapY + ERD.margin);
+
+  const out: string[] = [];
+  for (const b of boxes.values()) {
+    const cls = b.stub ? 'tbl stub' : 'tbl';
+    const parts = [`<g class="${cls}" id="erd-${e(b.name)}">`,
+      `<rect class="bx" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="5"/>`,
+      `<rect class="hd" x="${b.x}" y="${b.y}" width="${b.w}" height="${ERD.headH}" rx="5"/>`,
+      `<text class="ttl" x="${b.x + b.w / 2}" y="${b.y + 18}" text-anchor="middle">${e(b.name)}</text>`];
+    b.columns.forEach((c, i) => {
+      const ry = b.y + ERD.headH + (i + 1) * ERD.rowH - 5;
+      const key = c.is_pk ? ' <tspan class="key">PK</tspan>' : c.is_fk ? ' <tspan class="key">FK</tspan>' : '';
+      parts.push(`<text class="col" x="${b.x + ERD.pad}" y="${ry}">${e(c.name)}${key}</text>`,
+        `<text class="typ" x="${b.x + b.w - ERD.pad}" y="${ry}" text-anchor="end">${e(c.type)}</text>`);
+    });
+    parts.push('</g>');
+    out.push(parts.join(''));
+  }
+
+  const inbound = new Map<string, number>();
+  let channels = 0;               // edges routed down the right-hand side, each in its own lane
+  for (const n of inSet) {
+    const t = tables.get(n)!;
+    const child = boxes.get(n)!;
+    t.fks.forEach((fk, i) => {
+      const parent = boxes.get(fk.ref_table)!;
+      const pEnd = fk.nullable ? 'zero-one' : 'one';
+      const cEnd = fk.unique ? 'one' : 'many';
+      const label = fk.columns.join(', ');
+      const row = child.columns.findIndex((c) => c.name === fk.columns[0]);
+      const cy = child.y + ERD.headH + (Math.max(row, 0) + 0.5) * ERD.rowH;
+      let path: string;
+      let ends: string;
+      let text: string;
+      if (parent === child) {
+        // Self-reference: a loop off the right edge, from the column row up to the header.
+        const x0 = child.x + child.w;
+        const xr = x0 + ERD.loop;
+        const y1 = child.y + ERD.headH / 2;
+        path = `M${x0},${cy} H${xr} V${y1} H${x0}`;
+        ends = erdEnd(cEnd, x0, cy, 0, 'c') + erdEnd(pEnd, x0, y1, 0, 'p');
+        text = `<text class="lbl" x="${xr + 4}" y="${(cy + y1) / 2 + 4}">${e(label)}</text>`;
+        maxX = Math.max(maxX, xr + 4 + label.length * ERD.charW);
+      } else if (parent.layer < child.layer) {
+        // Parent above. Leave the child's top, arrive at the parent's bottom, with attachment
+        // points spread so siblings do not overlap. A parent more than one row up is reached
+        // through a lane on the right, so the line never crosses the rows in between.
+        const k = inbound.get(parent.name) ?? 0;
+        inbound.set(parent.name, k + 1);
+        const cx = child.x + (child.w * (i + 1)) / (t.fks.length + 1);
+        const px = parent.x + (parent.w * ((k % 5) + 1)) / 6;
+        const py = parent.y + parent.h;
+        const up = gapMid(child.layer - 1, child.layer);
+        if (child.layer - parent.layer === 1) {
+          path = `M${cx},${child.y} V${up} H${px} V${py}`;
+        } else {
+          const xr = width + ERD.loop + channels * 12;
+          channels += 1;
+          const down = gapMid(parent.layer, parent.layer + 1);
+          path = `M${cx},${child.y} V${up} H${xr} V${down} H${px} V${py}`;
+          maxX = Math.max(maxX, xr);
+        }
+        ends = erdEnd(cEnd, cx, child.y, -90, 'c') + erdEnd(pEnd, px, py, 90, 'p');
+        text = `<text class="lbl" x="${cx + 5}" y="${child.y - 20}">${e(label)}</text>`;
+      } else {
+        // Cycle or same row: route around the right of both boxes.
+        const xr = Math.max(child.x + child.w, parent.x + parent.w) + ERD.loop;
+        const py = parent.y + ERD.headH / 2;
+        path = `M${child.x + child.w},${cy} H${xr} V${py} H${parent.x + parent.w}`;
+        ends = erdEnd(cEnd, child.x + child.w, cy, 0, 'c') + erdEnd(pEnd, parent.x + parent.w, py, 0, 'p');
+        text = `<text class="lbl" x="${xr + 4}" y="${(cy + py) / 2 + 4}">${e(label)}</text>`;
+        maxX = Math.max(maxX, xr + 4 + label.length * ERD.charW);
+      }
+      out.push(`<g class="edge" data-fk="${e(n)}.${e(label)}" data-ends="${pEnd} ${cEnd}">`
+        + `<path class="ln" d="${path}"/>${ends}${text}</g>`);
+    });
+  }
+
+  const W = Math.ceil(maxX + ERD.margin);
+  const title = `Entity-relationship diagram: ${inSet.join(', ')}`;
+  return `<svg class="erd" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" `
+    + `role="img" aria-label="${e(title)}"><title>${e(title)}</title>${out.join('')}</svg>`;
 }
 
 export function writeMarkdown(outdir: string, tables: Map<string, Table>, narratives: Narratives, findings: Finding[], stats: Stats): void {
@@ -1222,13 +1441,24 @@ export function writeMarkdown(outdir: string, tables: Map<string, Table>, narrat
   }
   const unclaimed = [...tables.values()].filter((t) => t.domain === null).map((t) => t.name);
   if (unclaimed.length) lines.push('', `Unclaimed tables: ${unclaimed.map((n) => `\`${n}\``).join(', ')}`);
+  lines.push('', '## Diagram', '', '```mermaid', mermaidErd(tables, [...tables.keys()]), '```');
   writeFileSync(path.join(outdir, 'README.md'), `${lines.join('\n')}\n`);
+
+  const domainRelationships = (d: Narratives): Relationship[] =>
+    (d.tables as string[]).flatMap((n) => (tables.has(n) ? relationships(tables.get(n)!, narratives) : []));
 
   const fmap = new Map(findings.map((f) => [f.id, f]));
   for (const d of domains) {
     const dl: string[] = [`# ${d.title}`, '', d.blurb ?? '', '',
       `Tenant-scoped: ${d.tenant_scoped ? 'yes' : 'no'}`, '', '```mermaid',
-      mermaidErd(tables, d.tables), '```', ''];
+      mermaidErd(tables, d.tables), '```', '', '## Relationships', ''];
+    const rels = domainRelationships(d);
+    if (!rels.length) dl.push('_No foreign keys in this domain._', '');
+    for (const r of rels) {
+      dl.push(`- \`${r.child}.${r.columns.join(', ')}\` → \`${r.parent}.${r.ref_columns.join(', ')}\` — ${describeRelationship(r)}  `,
+        `  why: ${r.why ?? 'not documented'}`);
+    }
+    if (rels.length) dl.push('');
     for (const name of d.tables as string[]) {
       const t = tables.get(name);
       if (!t) {
@@ -1285,6 +1515,11 @@ export function escapeHtml(s: string): string {
 const CSS = `
 :root{--bg:#fbfaf7;--ink:#1d2430;--mute:#6b7280;--rule:#e2ddd3;--panel:#ffffff;--acc:#1f5f8b;--err:#b3261e;--warn:#9a6700;--info:#3b6ea5;--errbg:#fbe9e7;--warnbg:#fff4d6;--infobg:#e8f0fa}
 @media(prefers-color-scheme:dark){:root{--bg:#171a1f;--ink:#e6e3dc;--mute:#9aa0a8;--rule:#2c313a;--panel:#1e232a;--acc:#7cb3e0;--err:#f28b82;--warn:#f2c14e;--info:#8fb8ea;--errbg:#3a2220;--warnbg:#3a3220;--infobg:#1f2c3a}}
+.erd-wrap{overflow-x:auto;margin:12px 0}.erd{max-width:100%;height:auto;font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.erd .bx{fill:var(--panel);stroke:var(--ink);stroke-width:1.2}.erd .hd{fill:var(--rule)}.erd .stub .bx{stroke:var(--mute);stroke-dasharray:4 3}.erd .stub .hd{fill:none}
+.erd .ttl{font-weight:700;fill:var(--ink)}.erd .col{fill:var(--ink)}.erd .typ,.erd .lbl{fill:var(--mute);font-size:11px}.erd .key{fill:var(--acc);font-weight:700;font-size:10px}
+.erd .ln,.erd .end path{fill:none;stroke:var(--ink);stroke-width:1.2}.erd .end circle{fill:var(--panel);stroke:var(--ink);stroke-width:1.2}
+.rels{list-style:none;padding:0;margin:8px 0 16px}.rels li{padding:6px 0;border-bottom:1px solid var(--rule)}.rels .why{font-style:italic}
 *{box-sizing:border-box}body{margin:0;font:15px/1.5 Georgia,'Iowan Old Style','Palatino Linotype',serif;color:var(--ink);background:var(--bg);display:flex;align-items:flex-start;min-height:100vh}
 nav{flex:0 0 270px;position:sticky;top:0;height:100vh;overflow:auto;padding:22px 18px;border-right:1px solid var(--rule);background:var(--panel)}
 nav .brand{font-size:17px;font-weight:700;margin:0 0 2px}nav .sub{color:var(--mute);font-size:13px;margin:0 0 14px}
@@ -1423,8 +1658,16 @@ export function writeHtml(outdir: string, tables: Map<string, Table>, narratives
       return t ? tableHtml(t)
         : `<section class="table missing" id="t-${e(n)}"><header><h3>${e(n)}</h3></header><p class="error">Listed in narratives.json but not in the schema.</p></section>`;
     }).join('');
+    const rels = (d.tables as string[]).flatMap((n) => (tables.has(n) ? relationships(tables.get(n)!, narratives) : []));
+    const relHtml = rels.length
+      ? `<ul class="rels">${rels.map((r) => `<li><code>${e(r.child)}.${e(r.columns.join(', '))}</code> → `
+        + `<a href="#t-${e(r.parent)}">${e(r.parent)}</a>.${e(r.ref_columns.join(', '))} `
+        + `<span class="muted">— ${e(describeRelationship(r))}</span><br>`
+        + `<span class="why${r.why ? '' : ' muted'}">why: ${e(r.why ?? 'not documented')}</span></li>`).join('')}</ul>`
+      : '<p class="muted">No foreign keys in this domain.</p>';
     body.push(`<section class="domain" id="d-${e(d.key)}"><h2>${e(d.title)} <span class="muted">${d.tables.length} tables`
-      + `${d.tenant_scoped ? ' · tenant-scoped' : ''}</span></h2><p class="lead">${e(d.blurb ?? '')}</p>${secs}</section>`);
+      + `${d.tenant_scoped ? ' · tenant-scoped' : ''}</span></h2><p class="lead">${e(d.blurb ?? '')}</p>`
+      + `<div class="erd-wrap">${svgErd(tables, d.tables)}</div>${relHtml}${secs}</section>`);
   }
   if (unclaimed.length) {
     body.push('<section class="domain" id="d-unclaimed"><h2>Unclaimed tables</h2><p class="lead">Present in the schema, absent from every domain.</p>'

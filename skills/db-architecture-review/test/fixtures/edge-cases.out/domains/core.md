@@ -37,6 +37,11 @@ erDiagram
   org ||--o{ job_state : "org_id"
 ```
 
+## Relationships
+
+- `job_state.org_id` → `org.id` — one org, many job_state · required · ON DELETE CASCADE · indexed  
+  why: jobs run on behalf of one organisation
+
 ## org
 
 | Column | Type | Null | Default | References | Notes |

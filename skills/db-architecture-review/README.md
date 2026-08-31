@@ -13,11 +13,11 @@ produces
 
 ```
 docs/database/
-├── index.html      self-contained browsable docs, findings inline, filter box
+├── index.html      self-contained browsable docs, findings inline, filter box, an inline SVG diagram and a relationship list per domain
 ├── schema.json     the model + findings (input for the Claude Code judgment pass)
-├── README.md       markdown index
+├── README.md       markdown index with a whole-schema Mermaid diagram
 ├── FINDINGS.md     findings by severity, each with cause, effect and fix SQL
-└── domains/*.md    one page per domain with a Mermaid ERD
+└── domains/*.md    one page per domain with a Mermaid diagram and a Relationships list (facts + why)
 ```
 
 and exits `1` if any error-severity finding exists (`--fail-on` to tune).
@@ -78,6 +78,7 @@ keys, tenant gaps — need a claim to check against.
 | timestamp-tz | info | TIMESTAMP without time zone |
 | orphan-table | info | references nothing, referenced by nothing |
 | singleton-table | info | documented single-row table with nothing enforcing it |
+| undocumented-relationship | info | foreign key with no `why` in narratives.json (only with `require_relationship_notes`) |
 | blast-radius | info | hub tables (≥5 dependents) |
 | wide-table | info | ≥30 columns |
 

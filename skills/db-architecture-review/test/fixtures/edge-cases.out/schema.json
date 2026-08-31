@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-31T14:53:52+00:00",
+  "generated_at": "2026-08-31T15:16:00+00:00",
   "source": "test/fixtures/edge-cases.sql",
   "stats": {
     "tables": 10,
@@ -9,7 +9,7 @@
     "findings": {
       "error": 9,
       "warn": 8,
-      "info": 9
+      "info": 11
     }
   },
   "database": {
@@ -52,6 +52,7 @@
     "tenant_table": "org",
     "tenant_column": "org_id",
     "require_rls": true,
+    "require_relationship_notes": true,
     "global_tables": [],
     "singleton_tables": [
       "profile",
@@ -61,12 +62,50 @@
       {
         "parent": "org",
         "child": "profile",
-        "expect": "1:N"
+        "expect": "1:N",
+        "why": "the profile is the organisation's public page"
       },
       {
         "parent": "org",
         "child": "scratch",
         "expect": "1:1"
+      },
+      {
+        "parent": "org",
+        "child": "widget",
+        "expect": "1:N",
+        "why": "widgets are built by one organisation and never shared"
+      },
+      {
+        "parent": "org",
+        "child": "attachment",
+        "why": "an attachment is stored under the organisation that uploaded it"
+      },
+      {
+        "parent": "widget",
+        "child": "attachment",
+        "why": "an attachment can illustrate a widget"
+      },
+      {
+        "parent": "org",
+        "child": "ticket",
+        "expect": "1:N",
+        "why": "tickets are raised by an organisation's staff"
+      },
+      {
+        "parent": "org",
+        "child": "region",
+        "why": "regions are the organisation's own sales territories"
+      },
+      {
+        "parent": "region",
+        "child": "site",
+        "why": "a site is located in exactly one of its organisation's regions"
+      },
+      {
+        "parent": "org",
+        "child": "job_state",
+        "why": "jobs run on behalf of one organisation"
       }
     ],
     "natural_keys": [
@@ -383,9 +422,9 @@
       ],
       "domain": "core",
       "findings": [
-        "F014",
-        "F015",
-        "F025"
+        "F016",
+        "F017",
+        "F027"
       ],
       "source_line": 20
     },
@@ -875,8 +914,8 @@
       ],
       "domain": "work",
       "findings": [
-        "F017",
-        "F026"
+        "F019",
+        "F028"
       ],
       "source_line": 44
     },
@@ -1019,7 +1058,8 @@
         "F003",
         "F004",
         "F008",
-        "F018"
+        "F012",
+        "F020"
       ],
       "source_line": 60
     },
@@ -1234,7 +1274,7 @@
       ],
       "domain": "work",
       "findings": [
-        "F013"
+        "F015"
       ],
       "source_line": 69
     },
@@ -1343,7 +1383,7 @@
       "domain": "work",
       "findings": [
         "F010",
-        "F023"
+        "F025"
       ],
       "source_line": 87
     },
@@ -1466,8 +1506,9 @@
         "F005",
         "F007",
         "F009",
-        "F019",
-        "F024"
+        "F013",
+        "F021",
+        "F026"
       ],
       "source_line": 96
     },
@@ -1570,8 +1611,8 @@
       "domain": "work",
       "findings": [
         "F006",
-        "F012",
-        "F020"
+        "F014",
+        "F022"
       ],
       "source_line": 102
     },
@@ -1635,8 +1676,8 @@
       "domain": "work",
       "findings": [
         "F011",
-        "F016",
-        "F021"
+        "F018",
+        "F023"
       ],
       "source_line": 111
     },
@@ -1849,14 +1890,14 @@
       "referenced_by": [],
       "domain": "core",
       "findings": [
-        "F022"
+        "F024"
       ],
       "source_line": 133
     }
   },
   "findings": [
     {
-      "id": "F018",
+      "id": "F020",
       "check": "rls-missing",
       "severity": "error",
       "table": "attachment",
@@ -1880,7 +1921,7 @@
       "fix_sql": ""
     },
     {
-      "id": "F015",
+      "id": "F017",
       "check": "money-float",
       "severity": "error",
       "table": "org",
@@ -1893,7 +1934,7 @@
       "fix_sql": "ALTER TABLE org ALTER COLUMN fee TYPE numeric(14,2);"
     },
     {
-      "id": "F019",
+      "id": "F021",
       "check": "rls-missing",
       "severity": "error",
       "table": "region",
@@ -1917,7 +1958,7 @@
       "fix_sql": ""
     },
     {
-      "id": "F016",
+      "id": "F018",
       "check": "tenant-unscoped",
       "severity": "error",
       "table": "scratch",
@@ -1928,7 +1969,7 @@
       "fix_sql": ""
     },
     {
-      "id": "F012",
+      "id": "F014",
       "check": "natural-key",
       "severity": "error",
       "table": "site",
@@ -1942,7 +1983,7 @@
       "fix_sql": "ALTER TABLE site ADD CONSTRAINT site_org_id_region_key UNIQUE (org_id, region);"
     },
     {
-      "id": "F020",
+      "id": "F022",
       "check": "rls-missing",
       "severity": "error",
       "table": "site",
@@ -1955,7 +1996,7 @@
       "fix_sql": "ALTER TABLE site ENABLE ROW LEVEL SECURITY;\nCREATE POLICY site_tenant_isolation ON site USING (org_id = current_setting('app.tenant_id')::uuid);"
     },
     {
-      "id": "F017",
+      "id": "F019",
       "check": "rls-no-policy",
       "severity": "error",
       "table": "widget",
@@ -2033,7 +2074,7 @@
       "fix_sql": "CREATE INDEX CONCURRENTLY idx_region_lead_id ON region(lead_id);"
     },
     {
-      "id": "F024",
+      "id": "F026",
       "check": "fk-cycle",
       "severity": "warn",
       "table": "region",
@@ -2058,7 +2099,7 @@
       "fix_sql": "CREATE INDEX CONCURRENTLY idx_site_org_id_region ON site(org_id, region);"
     },
     {
-      "id": "F013",
+      "id": "F015",
       "check": "undocumented-enum",
       "severity": "warn",
       "table": "ticket",
@@ -2071,7 +2112,7 @@
       "fix_sql": "ALTER TABLE ticket ADD CONSTRAINT ticket_state_check CHECK (state IN (...));"
     },
     {
-      "id": "F022",
+      "id": "F024",
       "check": "orphan-table",
       "severity": "info",
       "table": "app_config",
@@ -2095,7 +2136,20 @@
       "fix_sql": ""
     },
     {
-      "id": "F014",
+      "id": "F012",
+      "check": "undocumented-relationship",
+      "severity": "info",
+      "table": "attachment",
+      "columns": [
+        "ticket_id"
+      ],
+      "title": "Relationship has no narrative",
+      "detail": "`attachment.ticket_id` → `ticket` is one ticket, many attachment · optional · ON DELETE NO ACTION · not indexed, but narratives.json does not say why the relationship exists, so the docs show the constraint and nothing else.",
+      "suggestion": "Add a `why` to the `ticket` → `attachment` entry in assertions.cardinality (create the entry if it is missing; `expect` is optional).",
+      "fix_sql": ""
+    },
+    {
+      "id": "F016",
       "check": "timestamp-tz",
       "severity": "info",
       "table": "org",
@@ -2108,7 +2162,7 @@
       "fix_sql": "ALTER TABLE org ALTER COLUMN created_at TYPE timestamptz;"
     },
     {
-      "id": "F025",
+      "id": "F027",
       "check": "blast-radius",
       "severity": "info",
       "table": "org",
@@ -2119,7 +2173,7 @@
       "fix_sql": ""
     },
     {
-      "id": "F023",
+      "id": "F025",
       "check": "singleton-table",
       "severity": "info",
       "table": "profile",
@@ -2156,7 +2210,20 @@
       "fix_sql": ""
     },
     {
-      "id": "F021",
+      "id": "F013",
+      "check": "undocumented-relationship",
+      "severity": "info",
+      "table": "region",
+      "columns": [
+        "lead_id"
+      ],
+      "title": "Relationship has no narrative",
+      "detail": "`region.lead_id` → `site` is one site, many region · optional · ON DELETE SET DEFAULT · not indexed, but narratives.json does not say why the relationship exists, so the docs show the constraint and nothing else.",
+      "suggestion": "Add a `why` to the `site` → `region` entry in assertions.cardinality (create the entry if it is missing; `expect` is optional).",
+      "fix_sql": ""
+    },
+    {
+      "id": "F023",
       "check": "orphan-table",
       "severity": "info",
       "table": "scratch",
@@ -2167,7 +2234,7 @@
       "fix_sql": ""
     },
     {
-      "id": "F026",
+      "id": "F028",
       "check": "wide-table",
       "severity": "info",
       "table": "widget",
