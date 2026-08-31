@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A Claude Code plugin marketplace with one skill, `skills/db-architecture-review/`, that documents a PostgreSQL schema and reviews its design in one run. It has two halves on purpose. `scripts/db-review.ts` runs deterministic checks and writes the docs. `SKILL.md` tells a Claude session how to do the judgment pass the script cannot (compare the narrative to the schema relationship by relationship, write the extension-pain scenarios) and how to feed each judgment back into `narratives.json` so it becomes a mechanical check on the next run. `FORCLAUDE.md` in the skill folder is the design history and explains why each tradeoff was made; read it before changing a heuristic.
+A Claude Code plugin marketplace with one skill, `skills/db-architecture-review/`, that documents a PostgreSQL schema and reviews its design in one run. It has two halves on purpose. `scripts/db-review.ts` runs deterministic checks and writes the docs. `SKILL.md` tells a Claude session how to do the judgment pass the script cannot (compare the narrative to the schema relationship by relationship, write the extension-pain scenarios) and how to feed each judgment back into `narratives.json` so it becomes a mechanical check on the next run. The design history lives in the git log and in `docs/specs/`.
 
 The repo root is the public marketplace, laid out like `greenstevester/fastlane-skill`: `.claude-plugin/marketplace.json` lists the plugin with `source: ./skills/db-architecture-review`, `.claude-plugin/plugin.json` describes the marketplace, `README.md` is the front page with the `/plugin marketplace add` install steps, plus `LICENSE` (MIT) and `icon.png`. Users install with `/plugin marketplace add greenstevester/db-architecture-reviewer` then `/plugin install db-architecture-review@db-architecture-reviewer`; for local testing, `claude --plugin-dir skills/db-architecture-review` (the plugin root is the folder holding `SKILL.md`, not the marketplace root). The skill's own `README.md` inside `skills/db-architecture-review/` documents the script for people running it without Claude. Releases are tags `vX.Y.Z` with GitHub release notes. A version lives in four places and they move together: `.claude-plugin/marketplace.json` (the marketplace `version` and the plugin entry's `version`), `.claude-plugin/plugin.json`, `skills/db-architecture-review/.claude-plugin/plugin.json`, and `skills/db-architecture-review/package.json`. Users only receive an update when the plugin entry's version changes. `claude plugin validate .` and `claude plugin validate skills/db-architecture-review` must both pass before tagging.
 
@@ -24,7 +24,7 @@ Flags: `--narratives` (optional; without it only the physical checks run), `--ou
 
 ### Testing
 
-`npm test` (`node --test`, no framework) runs `test/db-review.test.ts`, 119 tests in four groups.
+`npm test` (`node --test`, no framework) runs `test/db-review.test.ts`, 121 tests in four groups.
 
 1. Golden runs. The tool is executed on `examples/sample-schema.sql` (19 tables, every flaw marked `⚠ FLAW`, expected `findings: 8 error, 18 warn, 12 info`, exit 1) and on `test/fixtures/edge-cases.sql` (every construct the sample lacks: schema-qualified table, ALTER ADD/DROP COLUMN, CHECKs of every shape, partial and expression indexes, composite keys, a foreign-key cycle, a wide table, block comments, unparsed statements, table-level CHECKs as pg_dump writes them, a one-row table guarded by CHECK (id = 1), and the `\restrict` lines pg_dump emits; expected `9 error, 8 warn, 11 info`). Every output file is compared with the committed golden directory (including `erd.svg` and `domains/*.svg`), ignoring only the `generated_at` line and the HTML "Generated ... on" date, and a ratchet test scans every written file for the string `mermaid` — no output may ever mention it again. The sample's FINDINGS.md and findings came from the Python original; its README.md, domains/*.md and index.html now carry sections the Python never wrote (whole-schema diagram, Relationships, SVG diagrams). The edge-case golden came from this tool after a diff against the Python on the same input showed only the script name and the row-value fallback differing.
 2. Model and findings. The parsed table model and the findings list are compared with `examples/out/schema.json` on their own, so a parse bug and a check bug fail different tests.
@@ -37,7 +37,7 @@ The script does not write `examples/out/REVIEW.md`. That file is the hand-writte
 
 ## How the script is put together
 
-One file, `scripts/db-review.ts`, in four sections that run in order, with the command-line entry point at the bottom. It was ported line for line from a Python original on 2026-08-31; the postscript in `FORCLAUDE.md` records what changed.
+One file, `scripts/db-review.ts`, in four sections that run in order, with the command-line entry point at the bottom. It was ported line for line from a Python original on 2026-08-31.
 
 **Model.** Interfaces `Column`, `ForeignKey`, `Index`, `Table`, `Finding`, built by small `newColumn()`-style factories that assign fields in declaration order. `schema.json` is `JSON.stringify` of these objects, so field order in the interface is key order in the file. Add a field to the interface and its factory and it appears in the JSON. Tables live in a `Map` so iteration order is creation order.
 
@@ -57,7 +57,7 @@ The file where human intent lives, and what the interesting checks compare again
 - When domains exist, unclaimed tables are skipped by the tenant checks, so one root cause does not produce two errors.
 - Tenant-derivability on a table that looks like a junction is `info`, not `warn`.
 - Fix SQL is a template on purpose (literal dots in `ADD PRIMARY KEY (...)`, `CHECK (status IN (...))`). Copy-pasting an incomplete constraint is safer than copy-pasting a subtly wrong one.
-- PostgreSQL only. A multi-dialect parser would weaken every check. If Oracle or MySQL support is ever needed, `FORCLAUDE.md` names `sqlglot` as the pivot and lists what you would lose.
+- PostgreSQL only. A multi-dialect parser would weaken every check. If Oracle or MySQL support is ever needed, `sqlglot` is the pivot to reach for.
 
 ## The skill workflow
 

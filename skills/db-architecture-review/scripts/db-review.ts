@@ -20,7 +20,7 @@
  *
  * Requires: Node 24+, libpg-query  (npm install)
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -1398,7 +1398,8 @@ export function svgErd(tables: Map<string, Table>, names: string[], standalone =
           maxX = Math.max(maxX, xr);
         }
         ends = erdEnd(cEnd, cx, child.y, -90, 'c') + erdEnd(pEnd, px, py, 90, 'p');
-        text = `<text class="lbl" x="${cx + 5}" y="${child.y - 20}">${e(label)}</text>`;
+        // Staggered heights: several keys leaving one child would otherwise overprint their labels.
+        text = `<text class="lbl" x="${cx + 5}" y="${child.y - 20 - [0, 24, 36][i % 3]}">${e(label)}</text>`;
       } else {
         // Cycle or same row: route around the right of both boxes.
         const xr = Math.max(child.x + child.w, parent.x + parent.w) + ERD.loop;
@@ -1423,6 +1424,14 @@ export function svgErd(tables: Map<string, Table>, names: string[], standalone =
 export function writeMarkdown(outdir: string, tables: Map<string, Table>, narratives: Narratives, findings: Finding[], stats: Stats): void {
   const domains = (narratives.domains ?? []) as Narratives[];
   mkdirSync(path.join(outdir, 'domains'), { recursive: true });
+  // A domain removed from narratives.json must take its page and diagram with it, or a stale
+  // domains/<key>.md survives reruns and gets committed as if still current.
+  const domainKeys = new Set(domains.map((d) => d.key as string));
+  for (const f of readdirSync(path.join(outdir, 'domains'))) {
+    if ((f.endsWith('.md') || f.endsWith('.svg')) && !domainKeys.has(f.replace(/\.(md|svg)$/, ''))) {
+      unlinkSync(path.join(outdir, 'domains', f));
+    }
+  }
   const db = narratives.database ?? {};
   const lines: string[] = [`# ${db.title ?? 'Database'}`, '', db.blurb ?? '', '',
     `${stats.tables} tables · ${stats.columns} columns · ${stats.foreign_keys} foreign keys · `

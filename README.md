@@ -161,7 +161,7 @@ claude --plugin-dir /path/to/db-architecture-reviewer/skills/db-architecture-rev
 cd skills/db-architecture-review && npm test && npm run typecheck
 ```
 
-`skills/db-architecture-review/FORCLAUDE.md` is the design history: what was tried, what was rejected, and why the tool is two halves with a JSON file in the middle.
+The design history — what was tried, what was rejected, and why the tool is two halves with a JSON file in the middle — lives in the repo's git log and in `docs/specs/`.
 
 ## License
 
