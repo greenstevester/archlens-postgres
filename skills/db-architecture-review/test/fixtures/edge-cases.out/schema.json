@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-08-31T13:20:34+00:00",
+  "generated_at": "2026-08-31T15:16:00+00:00",
   "source": "test/fixtures/edge-cases.sql",
   "stats": {
-    "tables": 8,
-    "columns": 68,
-    "foreign_keys": 9,
+    "tables": 10,
+    "columns": 76,
+    "foreign_keys": 10,
     "domains": 2,
     "findings": {
       "error": 9,
       "warn": 8,
-      "info": 8
+      "info": 11
     }
   },
   "database": {
@@ -27,7 +27,9 @@
       "tenant_scoped": false,
       "tables": [
         "org",
-        "ghost_table"
+        "ghost_table",
+        "job_state",
+        "app_config"
       ]
     },
     {
@@ -50,20 +52,60 @@
     "tenant_table": "org",
     "tenant_column": "org_id",
     "require_rls": true,
+    "require_relationship_notes": true,
     "global_tables": [],
     "singleton_tables": [
-      "profile"
+      "profile",
+      "app_config"
     ],
     "cardinality": [
       {
         "parent": "org",
         "child": "profile",
-        "expect": "1:N"
+        "expect": "1:N",
+        "why": "the profile is the organisation's public page"
       },
       {
         "parent": "org",
         "child": "scratch",
         "expect": "1:1"
+      },
+      {
+        "parent": "org",
+        "child": "widget",
+        "expect": "1:N",
+        "why": "widgets are built by one organisation and never shared"
+      },
+      {
+        "parent": "org",
+        "child": "attachment",
+        "why": "an attachment is stored under the organisation that uploaded it"
+      },
+      {
+        "parent": "widget",
+        "child": "attachment",
+        "why": "an attachment can illustrate a widget"
+      },
+      {
+        "parent": "org",
+        "child": "ticket",
+        "expect": "1:N",
+        "why": "tickets are raised by an organisation's staff"
+      },
+      {
+        "parent": "org",
+        "child": "region",
+        "why": "regions are the organisation's own sales territories"
+      },
+      {
+        "parent": "region",
+        "child": "site",
+        "why": "a site is located in exactly one of its organisation's regions"
+      },
+      {
+        "parent": "org",
+        "child": "job_state",
+        "why": "jobs run on behalf of one organisation"
       }
     ],
     "natural_keys": [
@@ -186,7 +228,7 @@
           "length": null,
           "not_null": true,
           "default": "ARRAY['a', 'b']",
-          "check": null,
+          "check": "(tags)[1] <> ''",
           "comment": "",
           "is_pk": false,
           "is_unique": false,
@@ -368,15 +410,23 @@
           ],
           "on_delete": "NO ACTION",
           "cardinality": "1:N"
+        },
+        {
+          "table": "job_state",
+          "columns": [
+            "org_id"
+          ],
+          "on_delete": "CASCADE",
+          "cardinality": "1:N"
         }
       ],
       "domain": "core",
       "findings": [
-        "F014",
-        "F015",
-        "F024"
+        "F016",
+        "F017",
+        "F027"
       ],
-      "source_line": 17
+      "source_line": 20
     },
     "widget": {
       "name": "widget",
@@ -864,10 +914,10 @@
       ],
       "domain": "work",
       "findings": [
-        "F017",
-        "F025"
+        "F019",
+        "F028"
       ],
-      "source_line": 41
+      "source_line": 44
     },
     "attachment": {
       "name": "attachment",
@@ -1008,9 +1058,10 @@
         "F003",
         "F004",
         "F008",
-        "F018"
+        "F012",
+        "F020"
       ],
-      "source_line": 57
+      "source_line": 60
     },
     "ticket": {
       "name": "ticket",
@@ -1223,9 +1274,9 @@
       ],
       "domain": "work",
       "findings": [
-        "F013"
+        "F015"
       ],
-      "source_line": 66
+      "source_line": 69
     },
     "profile": {
       "name": "profile",
@@ -1332,9 +1383,9 @@
       "domain": "work",
       "findings": [
         "F010",
-        "F022"
+        "F025"
       ],
-      "source_line": 84
+      "source_line": 87
     },
     "region": {
       "name": "region",
@@ -1455,10 +1506,11 @@
         "F005",
         "F007",
         "F009",
-        "F019",
-        "F023"
+        "F013",
+        "F021",
+        "F026"
       ],
-      "source_line": 93
+      "source_line": 96
     },
     "site": {
       "name": "site",
@@ -1559,10 +1611,10 @@
       "domain": "work",
       "findings": [
         "F006",
-        "F012",
-        "F020"
+        "F014",
+        "F022"
       ],
-      "source_line": 99
+      "source_line": 102
     },
     "scratch": {
       "name": "scratch",
@@ -1624,15 +1676,228 @@
       "domain": "work",
       "findings": [
         "F011",
-        "F016",
-        "F021"
+        "F018",
+        "F023"
       ],
-      "source_line": 108
+      "source_line": 111
+    },
+    "job_state": {
+      "name": "job_state",
+      "schema": "public",
+      "description": [
+        "Table-level CHECKs, the only way pg_dump writes them: both enum-ish columns are guarded, so",
+        "neither may raise undocumented-enum; the two-column CHECK stays on the table."
+      ],
+      "section": "PHASE 2 — Work",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "type_base": "uuid",
+          "length": null,
+          "not_null": true,
+          "default": "gen_random_uuid()",
+          "check": null,
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "org_id",
+          "type": "bigint",
+          "type_base": "bigint",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": true,
+          "is_enum_type": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": "status IN ('queued', 'done')",
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": "state = ANY(ARRAY[CAST('open' AS text), CAST('closed' AS text)])",
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "uses",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": true,
+          "default": "0",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "max_uses",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": true,
+          "default": "1",
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [
+        "status IN ('queued', 'done')",
+        "state = ANY(ARRAY[CAST('open' AS text), CAST('closed' AS text)])",
+        "uses <= max_uses"
+      ],
+      "fks": [
+        {
+          "name": null,
+          "columns": [
+            "org_id"
+          ],
+          "ref_table": "org",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE",
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "cardinality": "1:N"
+        }
+      ],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        },
+        {
+          "name": "job_state_org",
+          "columns": [
+            "org_id"
+          ],
+          "unique": false,
+          "where": null,
+          "source": "index"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [],
+      "domain": "core",
+      "findings": [],
+      "source_line": 118
+    },
+    "app_config": {
+      "name": "app_config",
+      "schema": "public",
+      "description": [
+        "One row, enforced as pg_dump shows it (primary key plus CHECK (id = 1)). Asserted as a",
+        "singleton in the narratives; must raise no singleton-table finding, unlike profile."
+      ],
+      "section": "PHASE 2 — Work",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "type_base": "integer",
+          "length": null,
+          "not_null": true,
+          "default": "1",
+          "check": "id = 1",
+          "comment": "",
+          "is_pk": true,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        },
+        {
+          "name": "site_name",
+          "type": "text",
+          "type_base": "text",
+          "length": null,
+          "not_null": true,
+          "default": null,
+          "check": null,
+          "comment": "",
+          "is_pk": false,
+          "is_unique": false,
+          "is_fk": false,
+          "is_enum_type": false
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "uniques": [],
+      "checks": [
+        "id = 1"
+      ],
+      "fks": [],
+      "indexes": [
+        {
+          "name": null,
+          "columns": [
+            "id"
+          ],
+          "unique": true,
+          "where": null,
+          "source": "pk"
+        }
+      ],
+      "rls_enabled": false,
+      "policies": [],
+      "referenced_by": [],
+      "domain": "core",
+      "findings": [
+        "F024"
+      ],
+      "source_line": 133
     }
   },
   "findings": [
     {
-      "id": "F018",
+      "id": "F020",
       "check": "rls-missing",
       "severity": "error",
       "table": "attachment",
@@ -1656,7 +1921,7 @@
       "fix_sql": ""
     },
     {
-      "id": "F015",
+      "id": "F017",
       "check": "money-float",
       "severity": "error",
       "table": "org",
@@ -1669,7 +1934,7 @@
       "fix_sql": "ALTER TABLE org ALTER COLUMN fee TYPE numeric(14,2);"
     },
     {
-      "id": "F019",
+      "id": "F021",
       "check": "rls-missing",
       "severity": "error",
       "table": "region",
@@ -1693,7 +1958,7 @@
       "fix_sql": ""
     },
     {
-      "id": "F016",
+      "id": "F018",
       "check": "tenant-unscoped",
       "severity": "error",
       "table": "scratch",
@@ -1704,7 +1969,7 @@
       "fix_sql": ""
     },
     {
-      "id": "F012",
+      "id": "F014",
       "check": "natural-key",
       "severity": "error",
       "table": "site",
@@ -1718,7 +1983,7 @@
       "fix_sql": "ALTER TABLE site ADD CONSTRAINT site_org_id_region_key UNIQUE (org_id, region);"
     },
     {
-      "id": "F020",
+      "id": "F022",
       "check": "rls-missing",
       "severity": "error",
       "table": "site",
@@ -1731,7 +1996,7 @@
       "fix_sql": "ALTER TABLE site ENABLE ROW LEVEL SECURITY;\nCREATE POLICY site_tenant_isolation ON site USING (org_id = current_setting('app.tenant_id')::uuid);"
     },
     {
-      "id": "F017",
+      "id": "F019",
       "check": "rls-no-policy",
       "severity": "error",
       "table": "widget",
@@ -1809,7 +2074,7 @@
       "fix_sql": "CREATE INDEX CONCURRENTLY idx_region_lead_id ON region(lead_id);"
     },
     {
-      "id": "F023",
+      "id": "F026",
       "check": "fk-cycle",
       "severity": "warn",
       "table": "region",
@@ -1834,7 +2099,7 @@
       "fix_sql": "CREATE INDEX CONCURRENTLY idx_site_org_id_region ON site(org_id, region);"
     },
     {
-      "id": "F013",
+      "id": "F015",
       "check": "undocumented-enum",
       "severity": "warn",
       "table": "ticket",
@@ -1845,6 +2110,17 @@
       "detail": "`state` is a short string that clearly takes a fixed set of values, but the database accepts anything. Typos become new states, and nobody can list the legal values without reading application code. The comment lists `open | closed   (enum-ish, no CHECK)`, i.e. the values are known.",
       "suggestion": "Add a CHECK constraint (cheap, easy to evolve) or a lookup table if values need metadata. Avoid native ENUM types unless the set is truly frozen.",
       "fix_sql": "ALTER TABLE ticket ADD CONSTRAINT ticket_state_check CHECK (state IN (...));"
+    },
+    {
+      "id": "F024",
+      "check": "orphan-table",
+      "severity": "info",
+      "table": "app_config",
+      "columns": [],
+      "title": "Isolated table",
+      "detail": "`app_config` references nothing and nothing references it. Either it is a staging/log table (fine, say so), or it is dead, or it is the seed of a second data model growing beside the first.",
+      "suggestion": "Document its purpose or drop it.",
+      "fix_sql": ""
     },
     {
       "id": "F008",
@@ -1860,7 +2136,20 @@
       "fix_sql": ""
     },
     {
-      "id": "F014",
+      "id": "F012",
+      "check": "undocumented-relationship",
+      "severity": "info",
+      "table": "attachment",
+      "columns": [
+        "ticket_id"
+      ],
+      "title": "Relationship has no narrative",
+      "detail": "`attachment.ticket_id` → `ticket` is one ticket, many attachment · optional · ON DELETE NO ACTION · not indexed, but narratives.json does not say why the relationship exists, so the docs show the constraint and nothing else.",
+      "suggestion": "Add a `why` to the `ticket` → `attachment` entry in assertions.cardinality (create the entry if it is missing; `expect` is optional).",
+      "fix_sql": ""
+    },
+    {
+      "id": "F016",
       "check": "timestamp-tz",
       "severity": "info",
       "table": "org",
@@ -1873,18 +2162,18 @@
       "fix_sql": "ALTER TABLE org ALTER COLUMN created_at TYPE timestamptz;"
     },
     {
-      "id": "F024",
+      "id": "F027",
       "check": "blast-radius",
       "severity": "info",
       "table": "org",
       "columns": [],
-      "title": "Hub table: referenced by 5 tables",
+      "title": "Hub table: referenced by 6 tables",
       "detail": "Any change to its key, its delete semantics, or its partitioning touches every dependent. Migrations on hub tables need the longest lock windows and the most careful rollout.",
       "suggestion": "Treat schema changes here as breaking changes with a written rollout plan.",
       "fix_sql": ""
     },
     {
-      "id": "F022",
+      "id": "F025",
       "check": "singleton-table",
       "severity": "info",
       "table": "profile",
@@ -1921,7 +2210,20 @@
       "fix_sql": ""
     },
     {
-      "id": "F021",
+      "id": "F013",
+      "check": "undocumented-relationship",
+      "severity": "info",
+      "table": "region",
+      "columns": [
+        "lead_id"
+      ],
+      "title": "Relationship has no narrative",
+      "detail": "`region.lead_id` → `site` is one site, many region · optional · ON DELETE SET DEFAULT · not indexed, but narratives.json does not say why the relationship exists, so the docs show the constraint and nothing else.",
+      "suggestion": "Add a `why` to the `site` → `region` entry in assertions.cardinality (create the entry if it is missing; `expect` is optional).",
+      "fix_sql": ""
+    },
+    {
+      "id": "F023",
       "check": "orphan-table",
       "severity": "info",
       "table": "scratch",
@@ -1932,7 +2234,7 @@
       "fix_sql": ""
     },
     {
-      "id": "F025",
+      "id": "F028",
       "check": "wide-table",
       "severity": "info",
       "table": "widget",

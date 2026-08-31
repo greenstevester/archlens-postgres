@@ -74,11 +74,37 @@ erDiagram
     serial id PK
     text body
   }
+  org ||--o{ widget : "org_id"
+  org ||--o{ attachment : "org_id"
   widget |o--o{ attachment : "widget_id"
   ticket |o--o{ attachment : "ticket_id"
+  org ||--o{ ticket : "org_id"
+  org ||--|| profile : "org_id"
+  org ||--o{ region : "org_id"
   site |o--o{ region : "lead_id"
   region ||--o{ site : "org_id, region"
 ```
+
+## Relationships
+
+- `widget.org_id` → `org.id` — one org, many widget · required · ON DELETE CASCADE · indexed  
+  why: widgets are built by one organisation and never shared
+- `attachment.org_id` → `org.id` — one org, many attachment · required · ON DELETE NO ACTION · not indexed  
+  why: an attachment is stored under the organisation that uploaded it
+- `attachment.widget_id` → `widget.id` — one widget, many attachment · optional · ON DELETE NO ACTION · not indexed  
+  why: an attachment can illustrate a widget
+- `attachment.ticket_id` → `ticket.id` — one ticket, many attachment · optional · ON DELETE NO ACTION · not indexed  
+  why: not documented
+- `ticket.org_id` → `org.id` — one org, many ticket · required · ON DELETE RESTRICT · indexed  
+  why: tickets are raised by an organisation's staff
+- `profile.org_id` → `org.id` — one org, at most one profile · required · ON DELETE CASCADE · indexed  
+  why: the profile is the organisation's public page
+- `region.org_id` → `org.id` — one org, many region · required · ON DELETE NO ACTION · indexed  
+  why: regions are the organisation's own sales territories
+- `region.lead_id` → `site.id` — one site, many region · optional · ON DELETE SET DEFAULT · not indexed  
+  why: not documented
+- `site.org_id, region` → `region.org_id, code` — one region, many site · required · ON DELETE SET NULL · not indexed  
+  why: a site is located in exactly one of its organisation's regions
 
 ## widget
 
@@ -147,6 +173,7 @@ Findings:
 - **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `widget` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan.
 - **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `ticket` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan.
 - **Note** Tenant FK relies on the default ON DELETE NO ACTION — Deleting a `org` row will fail while `attachment` rows exist. Fine if tenants are never hard-deleted; a surprise the day offboarding/GDPR erasure is built.
+- **Note** Relationship has no narrative — `attachment.ticket_id` → `ticket` is one ticket, many attachment · optional · ON DELETE NO ACTION · not indexed, but narratives.json does not say why the relationship exists, so the docs show the constraint and nothing else.
 - **Error** Tenant table without row-level security — `attachment` carries `org_id` but RLS is not enabled, so isolation depends entirely on every query remembering the WHERE clause. One forgotten filter is a cross-tenant leak.
 
 ## ticket
@@ -211,6 +238,7 @@ Findings:
 - **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `site` must scan `region` to check the constraint, and every join from the parent side is a sequential scan.
 - **Note** Nullable foreign key — `region.lead_id` may be NULL, so the relationship to `site` is optional. That is legitimate (e.g. approved_by before approval) but often a modelling shrug: a row with no owner, or two nullable FKs that are secretly an either/or.
 - **Note** Tenant FK relies on the default ON DELETE NO ACTION — Deleting a `org` row will fail while `region` rows exist. Fine if tenants are never hard-deleted; a surprise the day offboarding/GDPR erasure is built.
+- **Note** Relationship has no narrative — `region.lead_id` → `site` is one site, many region · optional · ON DELETE SET DEFAULT · not indexed, but narratives.json does not say why the relationship exists, so the docs show the constraint and nothing else.
 - **Error** Tenant table without row-level security — `region` carries `org_id` but RLS is not enabled, so isolation depends entirely on every query remembering the WHERE clause. One forgotten filter is a cross-tenant leak.
 - **Warning** Foreign-key cycle — region → site → region. Rows must be inserted with a deferred constraint or a NULL-then-update dance; backups/restores and truncation have no valid order; ON DELETE CASCADE can loop.
 

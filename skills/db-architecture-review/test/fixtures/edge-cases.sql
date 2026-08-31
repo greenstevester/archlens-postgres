@@ -6,6 +6,9 @@
    accepted).
    ============================================================================ */
 
+-- pg_dump 16.10+ / 17.6+ wraps its output in these two psql commands; the parser must skip them.
+\restrict EdgeCaseKey
+
 CREATE SCHEMA app;
 
 CREATE TYPE mood AS ENUM ('happy', 'sad');
@@ -110,9 +113,34 @@ CREATE TABLE scratch (
   body  TEXT
 );
 
+-- Table-level CHECKs, the only way pg_dump writes them: both enum-ish columns are guarded, so
+-- neither may raise undocumented-enum; the two-column CHECK stays on the table.
+CREATE TABLE job_state (
+  id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id    BIGINT NOT NULL REFERENCES org(id) ON DELETE CASCADE,
+  status    TEXT NOT NULL,
+  state     TEXT NOT NULL,
+  uses      INTEGER NOT NULL DEFAULT 0,
+  max_uses  INTEGER NOT NULL DEFAULT 1,
+  CONSTRAINT job_state_status_check CHECK (status IN ('queued', 'done')),
+  CONSTRAINT job_state_state_check CHECK ((state = ANY (ARRAY['open'::text, 'closed'::text]))),
+  CONSTRAINT job_state_uses_check CHECK (uses <= max_uses)
+);
+CREATE INDEX job_state_org ON job_state(org_id);
+
+-- One row, enforced as pg_dump shows it (primary key plus CHECK (id = 1)). Asserted as a
+-- singleton in the narratives; must raise no singleton-table finding, unlike profile.
+CREATE TABLE app_config (
+  id         INTEGER PRIMARY KEY DEFAULT 1,
+  site_name  TEXT NOT NULL,
+  CONSTRAINT app_config_one_row CHECK (id = 1)
+);
+
 -- Statements the tool records as unparsed, plus references to a table that does not exist.
 CREATE VIEW open_tickets AS SELECT id FROM ticket WHERE state = 'open';
 CREATE FUNCTION touch() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END $$;
 CREATE TRIGGER ticket_touch BEFORE UPDATE ON ticket FOR EACH ROW EXECUTE FUNCTION touch();
 CREATE INDEX nope ON missing_table(x);
 ALTER TABLE missing_table ENABLE ROW LEVEL SECURITY;
+
+\unrestrict EdgeCaseKey

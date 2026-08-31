@@ -38,6 +38,15 @@ erDiagram
   tenant ||--|| tenant_auth_config : "tenant_id"
 ```
 
+## Relationships
+
+- `tenant.provider_id` → `provider.id` — one provider, many tenant · required · ON DELETE RESTRICT · indexed  
+  why: not documented
+- `tenant_settings.tenant_id` → `tenant.id` — one tenant, many tenant_settings · required · ON DELETE CASCADE · indexed  
+  why: every tenant gets one settings row at creation; there is nothing to configure twice
+- `tenant_auth_config.tenant_id` → `tenant.id` — one tenant, at most one tenant_auth_config · required · ON DELETE CASCADE · indexed  
+  why: a tenant signs in through at most one identity provider
+
 ## provider
 
 Top of the hierarchy. One row per hosting provider.

@@ -12,7 +12,7 @@
       "title": "Core",
       "blurb": "Organisations, and a table the narrative still lists but the schema dropped.",
       "tenant_scoped": false,
-      "tables": ["org", "ghost_table"]
+      "tables": ["org", "ghost_table", "job_state", "app_config"]
     },
     {
       "key": "work",
@@ -26,11 +26,19 @@
     "tenant_table": "org",
     "tenant_column": "org_id",
     "require_rls": true,
+    "require_relationship_notes": true,
     "global_tables": [],
-    "singleton_tables": ["profile"],
+    "singleton_tables": ["profile", "app_config"],
     "cardinality": [
-      { "parent": "org", "child": "profile", "expect": "1:N" },
-      { "parent": "org", "child": "scratch", "expect": "1:1" }
+      { "parent": "org", "child": "profile", "expect": "1:N", "why": "the profile is the organisation's public page" },
+      { "parent": "org", "child": "scratch", "expect": "1:1" },
+      { "parent": "org", "child": "widget", "expect": "1:N", "why": "widgets are built by one organisation and never shared" },
+      { "parent": "org", "child": "attachment", "why": "an attachment is stored under the organisation that uploaded it" },
+      { "parent": "widget", "child": "attachment", "why": "an attachment can illustrate a widget" },
+      { "parent": "org", "child": "ticket", "expect": "1:N", "why": "tickets are raised by an organisation's staff" },
+      { "parent": "org", "child": "region", "why": "regions are the organisation's own sales territories" },
+      { "parent": "region", "child": "site", "why": "a site is located in exactly one of its organisation's regions" },
+      { "parent": "org", "child": "job_state", "why": "jobs run on behalf of one organisation" }
     ],
     "natural_keys": [
       { "table": "site", "columns": ["org_id", "region"] }

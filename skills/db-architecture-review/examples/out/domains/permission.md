@@ -24,10 +24,25 @@ erDiagram
     uuid role_id FK
     timestamptz granted_at
   }
+  tenant ||--o{ role : "tenant_id"
   role ||--o{ role_permission : "role_id"
   permission ||--o{ role_permission : "permission_id"
+  users ||--o{ user_role : "user_id"
   role ||--o{ user_role : "role_id"
 ```
+
+## Relationships
+
+- `role.tenant_id` → `tenant.id` — one tenant, many role · required · ON DELETE CASCADE · indexed  
+  why: not documented
+- `role_permission.role_id` → `role.id` — one role, many role_permission · required · ON DELETE CASCADE · indexed  
+  why: not documented
+- `role_permission.permission_id` → `permission.id` — one permission, many role_permission · required · ON DELETE CASCADE · indexed  
+  why: not documented
+- `user_role.user_id` → `users.id` — one users, many user_role · required · ON DELETE CASCADE · not indexed  
+  why: not documented
+- `user_role.role_id` → `role.id` — one role, many user_role · required · ON DELETE CASCADE · not indexed  
+  why: not documented
 
 ## role
 

@@ -36,8 +36,19 @@ erDiagram
     jsonb payload
     timestamptz received_at
   }
+  users |o--o{ github_app_config : "created_by"
+  tenant ||--o{ github_app_installation : "tenant_id"
   github_app_installation ||--o{ webhook_delivery : "installation_id"
 ```
+
+## Relationships
+
+- `github_app_config.created_by` → `users.id` — one users, many github_app_config · optional · ON DELETE NO ACTION · not indexed  
+  why: not documented
+- `github_app_installation.tenant_id` → `tenant.id` — one tenant, many github_app_installation · required · ON DELETE CASCADE · indexed  
+  why: not documented
+- `webhook_delivery.installation_id` → `github_app_installation.id` — one github_app_installation, many webhook_delivery · required · ON DELETE CASCADE · not indexed  
+  why: GitHub sends every delivery for one installation; storing them raw per installation is the audit trail
 
 ## github_app_config
 

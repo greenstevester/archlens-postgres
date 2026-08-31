@@ -88,12 +88,12 @@ Open Claude Code in the repo that owns the schema and ask for a review. Claude w
 
 ```
 docs/database/
-├── index.html      self-contained browsable docs, findings inline, filter box
+├── index.html      self-contained browsable docs, findings inline, filter box, an inline SVG diagram and a relationship list per domain
 ├── schema.json     the model + findings (input for the judgment pass)
-├── README.md       markdown index
+├── README.md       markdown index with a whole-schema Mermaid diagram
 ├── FINDINGS.md     findings by severity, each with cause, effect and fix SQL
 ├── REVIEW.md       Claude's judgment pass: verdict, claims vs. enforcement, where the next change hurts
-└── domains/*.md    one page per domain with a Mermaid diagram
+└── domains/*.md    one page per domain with a Mermaid diagram and a Relationships list (facts + why)
 ```
 
 ## The checks
@@ -120,6 +120,7 @@ docs/database/
 | timestamp-tz | info | TIMESTAMP without time zone |
 | orphan-table | info | references nothing, referenced by nothing |
 | singleton-table | info | documented single-row table with nothing enforcing it |
+| undocumented-relationship | info | foreign key with no `why` in narratives.json (only with `require_relationship_notes`) |
 | blast-radius | info | hub tables (5 or more dependents) |
 | wide-table | info | 30 or more columns |
 

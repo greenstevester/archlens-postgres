@@ -61,10 +61,10 @@
     "global_tables": ["provider", "permission", "github_app_config"],
     "singleton_tables": ["github_app_config"],
     "cardinality": [
-      { "parent": "tenant", "child": "tenant_settings", "expect": "1:1" },
-      { "parent": "tenant", "child": "tenant_auth_config", "expect": "1:1" },
-      { "parent": "tenant", "child": "users", "expect": "1:N" },
-      { "parent": "github_app_installation", "child": "webhook_delivery", "expect": "1:N" }
+      { "parent": "tenant", "child": "tenant_settings", "expect": "1:1", "why": "every tenant gets one settings row at creation; there is nothing to configure twice" },
+      { "parent": "tenant", "child": "tenant_auth_config", "expect": "1:1", "why": "a tenant signs in through at most one identity provider" },
+      { "parent": "tenant", "child": "users", "expect": "1:N", "why": "people belong to the tenant that invited them; the same email in two tenants is two users" },
+      { "parent": "github_app_installation", "child": "webhook_delivery", "expect": "1:N", "why": "GitHub sends every delivery for one installation; storing them raw per installation is the audit trail" }
     ],
     "natural_keys": [
       { "table": "github_app_installation", "columns": ["tenant_id", "installation_id"] },

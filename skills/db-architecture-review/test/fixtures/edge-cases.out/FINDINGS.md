@@ -4,7 +4,7 @@ Deterministic checks run by `db-review.ts`. Each finding states what the schema 
 
 ## Errors (9)
 
-### F018 · attachment `org_id` — Tenant table without row-level security
+### F020 · attachment `org_id` — Tenant table without row-level security
 
 `attachment` carries `org_id` but RLS is not enabled, so isolation depends entirely on every query remembering the WHERE clause. One forgotten filter is a cross-tenant leak.
 
@@ -21,7 +21,7 @@ Domain `core` claims `ghost_table` but the schema has no such table — likely a
 
 **Fix:** Fix or remove the entry.
 
-### F015 · org `fee` — Monetary value stored as float
+### F017 · org `fee` — Monetary value stored as float
 
 `fee` is binary floating point. 0.1 + 0.2 ≠ 0.3; sums drift; reconciliation against the ledger will be off by cents.
 
@@ -31,7 +31,7 @@ Domain `core` claims `ghost_table` but the schema has no such table — likely a
 ALTER TABLE org ALTER COLUMN fee TYPE numeric(14,2);
 ```
 
-### F019 · region `org_id` — Tenant table without row-level security
+### F021 · region `org_id` — Tenant table without row-level security
 
 `region` carries `org_id` but RLS is not enabled, so isolation depends entirely on every query remembering the WHERE clause. One forgotten filter is a cross-tenant leak.
 
@@ -48,13 +48,13 @@ narratives.json says `org` → `scratch` is 1:1, but there is no FK from the chi
 
 **Fix:** Add the FK, or correct the narrative.
 
-### F016 · scratch — Tenant-scoped domain but no path to the tenant
+### F018 · scratch — Tenant-scoped domain but no path to the tenant
 
 `scratch` sits in a tenant-scoped domain yet neither has `org_id` nor references anything that leads to it. Its rows cannot be attributed to a tenant at all.
 
 **Fix:** Add `org_id` (NOT NULL, FK) or move the table to a global domain in narratives.json.
 
-### F012 · site `org_id, region` — Asserted natural key is not enforced
+### F014 · site `org_id, region` — Asserted natural key is not enforced
 
 `(org_id, region)` is declared to identify a `site` row, but nothing enforces it. Retries, double-submits and webhook redeliveries create duplicates.
 
@@ -64,7 +64,7 @@ narratives.json says `org` → `scratch` is 1:1, but there is no FK from the chi
 ALTER TABLE site ADD CONSTRAINT site_org_id_region_key UNIQUE (org_id, region);
 ```
 
-### F020 · site `org_id` — Tenant table without row-level security
+### F022 · site `org_id` — Tenant table without row-level security
 
 `site` carries `org_id` but RLS is not enabled, so isolation depends entirely on every query remembering the WHERE clause. One forgotten filter is a cross-tenant leak.
 
@@ -75,7 +75,7 @@ ALTER TABLE site ENABLE ROW LEVEL SECURITY;
 CREATE POLICY site_tenant_isolation ON site USING (org_id = current_setting('app.tenant_id')::uuid);
 ```
 
-### F017 · widget `org_id` — RLS enabled but no policy
+### F019 · widget `org_id` — RLS enabled but no policy
 
 With RLS on and no policy, non-owner roles see zero rows — usually discovered in staging as 'the table is empty'.
 
@@ -129,7 +129,7 @@ PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `site
 CREATE INDEX CONCURRENTLY idx_region_lead_id ON region(lead_id);
 ```
 
-### F023 · region — Foreign-key cycle
+### F026 · region — Foreign-key cycle
 
 region → site → region. Rows must be inserted with a deferred constraint or a NULL-then-update dance; backups/restores and truncation have no valid order; ON DELETE CASCADE can loop.
 
@@ -145,7 +145,7 @@ PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `regi
 CREATE INDEX CONCURRENTLY idx_site_org_id_region ON site(org_id, region);
 ```
 
-### F013 · ticket `state` — Enum-like column with no CHECK
+### F015 · ticket `state` — Enum-like column with no CHECK
 
 `state` is a short string that clearly takes a fixed set of values, but the database accepts anything. Typos become new states, and nobody can list the legal values without reading application code. The comment lists `open | closed   (enum-ish, no CHECK)`, i.e. the values are known.
 
@@ -155,7 +155,13 @@ CREATE INDEX CONCURRENTLY idx_site_org_id_region ON site(org_id, region);
 ALTER TABLE ticket ADD CONSTRAINT ticket_state_check CHECK (state IN (...));
 ```
 
-## Notes (8)
+## Notes (11)
+
+### F024 · app_config — Isolated table
+
+`app_config` references nothing and nothing references it. Either it is a staging/log table (fine, say so), or it is dead, or it is the seed of a second data model growing beside the first.
+
+**Fix:** Document its purpose or drop it.
 
 ### F008 · attachment `org_id` — Tenant FK relies on the default ON DELETE NO ACTION
 
@@ -163,7 +169,13 @@ Deleting a `org` row will fail while `attachment` rows exist. Fine if tenants ar
 
 **Fix:** State the intent explicitly: CASCADE, RESTRICT, or an offboarding job.
 
-### F014 · org `created_at` — TIMESTAMP without time zone
+### F012 · attachment `ticket_id` — Relationship has no narrative
+
+`attachment.ticket_id` → `ticket` is one ticket, many attachment · optional · ON DELETE NO ACTION · not indexed, but narratives.json does not say why the relationship exists, so the docs show the constraint and nothing else.
+
+**Fix:** Add a `why` to the `ticket` → `attachment` entry in assertions.cardinality (create the entry if it is missing; `expect` is optional).
+
+### F016 · org `created_at` — TIMESTAMP without time zone
 
 `created_at` stores wall-clock time with no zone. It reads back differently depending on the session's TimeZone, and DST transitions produce ambiguous values.
 
@@ -173,13 +185,13 @@ Deleting a `org` row will fail while `attachment` rows exist. Fine if tenants ar
 ALTER TABLE org ALTER COLUMN created_at TYPE timestamptz;
 ```
 
-### F024 · org — Hub table: referenced by 5 tables
+### F027 · org — Hub table: referenced by 6 tables
 
 Any change to its key, its delete semantics, or its partitioning touches every dependent. Migrations on hub tables need the longest lock windows and the most careful rollout.
 
 **Fix:** Treat schema changes here as breaking changes with a written rollout plan.
 
-### F022 · profile — Single-row configuration table
+### F025 · profile — Single-row configuration table
 
 `profile` is documented as holding exactly one row. Nothing enforces that, and the day a second instance is needed (a second GitHub App, a staging vs prod config) every reader that does `SELECT * ... LIMIT 1` becomes wrong.
 
@@ -202,13 +214,19 @@ Deleting a `org` row will fail while `region` rows exist. Fine if tenants are ne
 
 **Fix:** State the intent explicitly: CASCADE, RESTRICT, or an offboarding job.
 
-### F021 · scratch — Isolated table
+### F013 · region `lead_id` — Relationship has no narrative
+
+`region.lead_id` → `site` is one site, many region · optional · ON DELETE SET DEFAULT · not indexed, but narratives.json does not say why the relationship exists, so the docs show the constraint and nothing else.
+
+**Fix:** Add a `why` to the `site` → `region` entry in assertions.cardinality (create the entry if it is missing; `expect` is optional).
+
+### F023 · scratch — Isolated table
 
 `scratch` references nothing and nothing references it. Either it is a staging/log table (fine, say so), or it is dead, or it is the seed of a second data model growing beside the first.
 
 **Fix:** Document its purpose or drop it.
 
-### F025 · widget — Wide table (30 columns)
+### F028 · widget — Wide table (30 columns)
 
 Tables this wide usually hide several entities (or a JSON column that wants to be one). Every row update rewrites the whole tuple; TOAST kicks in; indexes bloat.
 

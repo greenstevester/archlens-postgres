@@ -14,7 +14,13 @@ erDiagram
     char_3 currency
     timestamptz billed_at
   }
+  tenant ||--o{ invoice_line : "tenant_id"
 ```
+
+## Relationships
+
+- `invoice_line.tenant_id` → `tenant.id` — one tenant, many invoice_line · required · ON DELETE NO ACTION · indexed  
+  why: not documented
 
 ## invoice_line
 

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-31T10:58:20+00:00",
+  "generated_at": "2026-08-31T15:16:00+00:00",
   "source": "examples/sample-schema.sql",
   "stats": {
     "tables": 19,
@@ -107,22 +107,26 @@
       {
         "parent": "tenant",
         "child": "tenant_settings",
-        "expect": "1:1"
+        "expect": "1:1",
+        "why": "every tenant gets one settings row at creation; there is nothing to configure twice"
       },
       {
         "parent": "tenant",
         "child": "tenant_auth_config",
-        "expect": "1:1"
+        "expect": "1:1",
+        "why": "a tenant signs in through at most one identity provider"
       },
       {
         "parent": "tenant",
         "child": "users",
-        "expect": "1:N"
+        "expect": "1:N",
+        "why": "people belong to the tenant that invited them; the same email in two tenants is two users"
       },
       {
         "parent": "github_app_installation",
         "child": "webhook_delivery",
-        "expect": "1:N"
+        "expect": "1:N",
+        "why": "GitHub sends every delivery for one installation; storing them raw per installation is the audit trail"
       }
     ],
     "natural_keys": [
