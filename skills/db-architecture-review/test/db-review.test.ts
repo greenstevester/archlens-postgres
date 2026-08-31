@@ -546,24 +546,35 @@ describe('relationship notes for two foreign keys to one parent', () => {
 });
 
 // Several foreign keys leaving one child used to print every edge label at the same height,
-// so the labels overprinted into a smudge above the box.
+// so the labels overprinted into a smudge above the box. The invariant is stronger than
+// "different heights": two labels sharing a height must not overlap horizontally.
 describe('svgErd edge labels', () => {
-  it('gives a child with several foreign keys distinct label heights', async () => {
+  it('never overlaps two labels placed at the same height', async () => {
     const ddl = `
       CREATE TABLE pa (id UUID PRIMARY KEY);
       CREATE TABLE pb (id UUID PRIMARY KEY);
       CREATE TABLE pc (id UUID PRIMARY KEY);
+      CREATE TABLE pd (id UUID PRIMARY KEY);
       CREATE TABLE kid (
         id UUID PRIMARY KEY,
-        a_id UUID NOT NULL REFERENCES pa(id),
-        b_id UUID NOT NULL REFERENCES pb(id),
-        c_id UUID NOT NULL REFERENCES pc(id)
+        first_extra_long_target_id UUID NOT NULL REFERENCES pa(id),
+        ab_id UUID NOT NULL REFERENCES pb(id),
+        cd_id UUID NOT NULL REFERENCES pc(id),
+        other_extra_long_target_id UUID NOT NULL REFERENCES pd(id)
       );`;
     const { tables } = await parseSchema(ddl, 'inline');
     const svg = svgErd(tables, [...tables.keys()], true);
-    const ys = [...svg.matchAll(/<text class="lbl" x="[0-9.]+" y="(-?[0-9.]+)"/g)].map((m) => Number(m[1]));
-    assert.equal(ys.length, 3);
-    assert.ok(new Set(ys).size >= 2, `label y values should not all coincide: ${ys}`);
+    const lbls = [...svg.matchAll(/<text class="lbl" x="([0-9.]+)" y="(-?[0-9.]+)">([^<]+)</g)]
+      .map((m) => ({ x: Number(m[1]), y: Number(m[2]), text: m[3] }));
+    assert.equal(lbls.length, 4);
+    for (const a of lbls) {
+      for (const b of lbls) {
+        if (a !== b && a.y === b.y && a.x <= b.x) {
+          assert.ok(a.x + a.text.length * 7.2 <= b.x,
+            `"${a.text}" (x=${a.x}) overlaps "${b.text}" (x=${b.x}) at y=${a.y}`);
+        }
+      }
+    }
   });
 });
 

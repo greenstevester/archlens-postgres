@@ -1359,6 +1359,7 @@ export function svgErd(tables: Map<string, Table>, names: string[], standalone =
   for (const n of inSet) {
     const t = tables.get(n)!;
     const child = boxes.get(n)!;
+    const lblEnd = [-Infinity, -Infinity, -Infinity]; // rightmost label edge per height band
     t.fks.forEach((fk, i) => {
       const parent = boxes.get(fk.ref_table)!;
       const pEnd = fk.nullable ? 'zero-one' : 'one';
@@ -1398,8 +1399,14 @@ export function svgErd(tables: Map<string, Table>, names: string[], standalone =
           maxX = Math.max(maxX, xr);
         }
         ends = erdEnd(cEnd, cx, child.y, -90, 'c') + erdEnd(pEnd, px, py, 90, 'p');
-        // Staggered heights: several keys leaving one child would otherwise overprint their labels.
-        text = `<text class="lbl" x="${cx + 5}" y="${child.y - 20 - [0, 24, 36][i % 3]}">${e(label)}</text>`;
+        // Three label heights: below the horizontal edge runs, and two above them, clear of the
+        // parent row's markers. Each label takes the first height whose previous label has ended.
+        // ponytail: when all three are occupied the least-crowded height takes the spill and two
+        // labels can touch; flipping text-anchor or an ellipsis is the upgrade if it reads badly.
+        let band = lblEnd.findIndex((endX) => cx + 5 >= endX);
+        if (band === -1) band = lblEnd.indexOf(Math.min(...lblEnd));
+        lblEnd[band] = cx + 5 + label.length * ERD.charW;
+        text = `<text class="lbl" x="${cx + 5}" y="${child.y - 20 - [0, 24, 36][band]}">${e(label)}</text>`;
       } else {
         // Cycle or same row: route around the right of both boxes.
         const xr = Math.max(child.x + child.w, parent.x + parent.w) + ERD.loop;
