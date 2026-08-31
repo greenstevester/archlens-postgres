@@ -48,8 +48,10 @@ table and at the end of a column line become descriptions.
   "a new table cannot silently fall out of the docs" gate.
 - `assertions`: claims the script can check mechanically —
   `tenant_table` / `tenant_column` / `require_rls`, `global_tables`,
-  `singleton_tables`, `cardinality[]` (`{parent, child, expect: "1:1"|"1:N"}`),
-  `natural_keys[]`, `exclusive_arcs[]`.
+  `singleton_tables`, `cardinality[]` (`{parent, child, expect: "1:1"|"1:N", why, columns}` —
+  `expect` and `why` are optional; `why` is printed beside the relationship in the docs;
+  `columns` names which foreign key the entry means and is needed when a table has two
+  foreign keys to the same parent), `natural_keys[]`, `exclusive_arcs[]`.
 
 The narratives are optional (`--narratives` omitted → docs + physical checks
 only), but the interesting findings — wrong cardinality, unenforced natural

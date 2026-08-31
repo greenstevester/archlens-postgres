@@ -24,7 +24,7 @@ Flags: `--narratives` (optional; without it only the physical checks run), `--ou
 
 ### Testing
 
-`npm test` (`node --test`, no framework) runs `test/db-review.test.ts`, 121 tests in four groups.
+`npm test` (`node --test`, no framework) runs `test/db-review.test.ts`, 125 tests in four groups.
 
 1. Golden runs. The tool is executed on `examples/sample-schema.sql` (19 tables, every flaw marked `⚠ FLAW`, expected `findings: 8 error, 18 warn, 12 info`, exit 1) and on `test/fixtures/edge-cases.sql` (every construct the sample lacks: schema-qualified table, ALTER ADD/DROP COLUMN, CHECKs of every shape, partial and expression indexes, composite keys, a foreign-key cycle, a wide table, block comments, unparsed statements, table-level CHECKs as pg_dump writes them, a one-row table guarded by CHECK (id = 1), and the `\restrict` lines pg_dump emits; expected `9 error, 8 warn, 11 info`). Every output file is compared with the committed golden directory (including `erd.svg` and `domains/*.svg`), ignoring only the `generated_at` line and the HTML "Generated ... on" date, and a ratchet test scans every written file for the string `mermaid` — no output may ever mention it again. The sample's FINDINGS.md and findings came from the Python original; its README.md, domains/*.md and index.html now carry sections the Python never wrote (whole-schema diagram, Relationships, SVG diagrams). The edge-case golden came from this tool after a diff against the Python on the same input showed only the script name and the row-value fallback differing.
 2. Model and findings. The parsed table model and the findings list are compared with `examples/out/schema.json` on their own, so a parse bug and a check bug fail different tests.
