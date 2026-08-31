@@ -1,0 +1,25 @@
+{
+  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "db-architecture-reviewer",
+  "version": "1.0.0",
+  "description": "Claude Code skill that documents a PostgreSQL schema and reviews its design in one run",
+  "owner": {
+    "name": "greenstevester",
+    "url": "https://github.com/greenstevester"
+  },
+  "plugins": [
+    {
+      "name": "db-architecture-review",
+      "description": "Document a PostgreSQL schema and review its logical and physical design: cardinality, natural keys, junction tables, tenant isolation, enum-ish columns, soft-delete collisions, and where the next feature will hurt",
+      "source": "./skills/db-architecture-review",
+      "version": "1.0.0",
+      "homepage": "https://github.com/greenstevester/db-architecture-reviewer/blob/main/skills/db-architecture-review/SKILL.md",
+      "repository": "https://github.com/greenstevester/db-architecture-reviewer",
+      "license": "MIT",
+      "keywords": ["postgresql", "schema", "database", "review", "documentation", "data-model"],
+      "author": {
+        "name": "greenstevester"
+      }
+    }
+  ]
+}

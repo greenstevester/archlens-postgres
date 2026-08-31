@@ -113,7 +113,7 @@ document should get *shorter* over time. That's the ratchet.
 
 - **pglast** — the real parser. Everything else was optional; this wasn't.
   Alternative: `sqlglot` (pure Python, multi-dialect, weaker on Postgres
-  extras like RLS). If you ever need Oracle DDL for the Avaloq side,
+  extras like RLS). If you ever need Oracle DDL for an Oracle-backed system,
   sqlglot is the pivot — you'd lose RLS/policy parsing and keep everything
   else.
 - **Dataclasses + `asdict()`** for the model. Means the JSON output is

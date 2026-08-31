@@ -98,12 +98,19 @@ and usually `fix_sql`.
 
 ## With Claude Code
 
-This folder is a skill. Drop it in `.claude/skills/db-architecture-review/`
-(or your shared config repo) and ask Claude to "review the data model". It
-runs the script, then does the part the script can't — comparing the
-narrative to the schema relationship by relationship and writing the
-extension-pain scenarios — into `docs/database/REVIEW.md`. See `SKILL.md`
-and `references/review-checklist.md`.
+This folder is a Claude Code plugin. Install it from the marketplace at the
+repo root:
+
+```
+/plugin marketplace add greenstevester/db-architecture-reviewer
+/plugin install db-architecture-review@db-architecture-reviewer
+```
+
+or, for local development, `claude --plugin-dir /path/to/this/folder`. Then
+ask Claude to "review the data model". It runs the script, then does the
+part the script can't — comparing the narrative to the schema relationship
+by relationship and writing the extension-pain scenarios — into
+`docs/database/REVIEW.md`. See `SKILL.md` and `references/review-checklist.md`.
 
 ## Try it
 

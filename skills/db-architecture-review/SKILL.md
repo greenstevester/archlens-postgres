@@ -60,8 +60,9 @@ natural keys can only be checked against a claim. If the file is missing:
 ### 3. Run the script
 
 ```bash
-npm install                                  # once, in the skill folder
-node scripts/db-review.ts /tmp/schema.sql --narratives narratives.json --out docs/database
+# ${CLAUDE_PLUGIN_ROOT} is the folder this SKILL.md lives in. Its one dependency is installed
+# with the plugin; if node_modules is missing there, run `npm ci` in that folder first.
+node ${CLAUDE_PLUGIN_ROOT}/scripts/db-review.ts /tmp/schema.sql --narratives narratives.json --out docs/database
 ```
 
 Read the summary it prints, then `docs/database/FINDINGS.md`. Open

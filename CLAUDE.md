@@ -4,16 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A Claude Code skill, `db-architecture-review/`, that documents a PostgreSQL schema and reviews its design in one run. It has two halves on purpose. `scripts/db-review.ts` runs deterministic checks and writes the docs. `SKILL.md` tells a Claude session how to do the judgment pass the script cannot (compare the narrative to the schema relationship by relationship, write the extension-pain scenarios) and how to feed each judgment back into `narratives.json` so it becomes a mechanical check on the next run. `FORCLAUDE.md` is the design history and explains why each tradeoff was made; read it before changing a heuristic. To use the skill in another project, drop the folder into `.claude/skills/db-architecture-review/`.
+A Claude Code plugin marketplace with one skill, `skills/db-architecture-review/`, that documents a PostgreSQL schema and reviews its design in one run. It has two halves on purpose. `scripts/db-review.ts` runs deterministic checks and writes the docs. `SKILL.md` tells a Claude session how to do the judgment pass the script cannot (compare the narrative to the schema relationship by relationship, write the extension-pain scenarios) and how to feed each judgment back into `narratives.json` so it becomes a mechanical check on the next run. `FORCLAUDE.md` in the skill folder is the design history and explains why each tradeoff was made; read it before changing a heuristic.
 
-`db-architecture-review.skill` is a zip of the skill folder for distribution. The files at the repo root (`README.md`, `SKILL.md`, `FORCLAUDE.md`, `db-review.ts`, `example-FINDINGS.md`, `example-REVIEW.md`, `example-index.html`) are byte-identical copies of files inside `db-architecture-review/`. The nested folder is the source. If you edit a root copy, re-copy it, or the two drift. The root `db-review.ts` is for reading only; it does not run on its own, because `package.json` and `node_modules` live in the nested folder.
+The repo root is the public marketplace, laid out like `greenstevester/fastlane-skill`: `.claude-plugin/marketplace.json` lists the plugin with `source: ./skills/db-architecture-review`, `.claude-plugin/plugin.json` describes the marketplace, `README.md` is the front page with the `/plugin marketplace add` install steps, plus `LICENSE` (MIT) and `icon.png`. Users install with `/plugin marketplace add greenstevester/db-architecture-reviewer` then `/plugin install db-architecture-review@db-architecture-reviewer`; for local testing, `claude --plugin-dir skills/db-architecture-review` (the plugin root is the folder holding `SKILL.md`, not the marketplace root). The skill's own `README.md` inside `skills/db-architecture-review/` documents the script for people running it without Claude. Releases are tags `vX.Y.Z` with GitHub release notes. A version lives in four places and they move together: `.claude-plugin/marketplace.json` (the marketplace `version` and the plugin entry's `version`), `.claude-plugin/plugin.json`, `skills/db-architecture-review/.claude-plugin/plugin.json`, and `skills/db-architecture-review/package.json`. Users only receive an update when the plugin entry's version changes. `claude plugin validate .` and `claude plugin validate skills/db-architecture-review` must both pass before tagging.
 
 ## Commands
 
 Node 24 or newer runs the `.ts` file directly; there is no build step. Install once inside the skill folder, then run:
 
 ```bash
-cd db-architecture-review
+cd skills/db-architecture-review
 npm install
 node scripts/db-review.ts examples/sample-schema.sql --narratives examples/narratives.json --out examples/out
 ```

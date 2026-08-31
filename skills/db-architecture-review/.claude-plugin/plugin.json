@@ -1,0 +1,12 @@
+{
+  "name": "db-architecture-review",
+  "version": "1.0.0",
+  "description": "Document a PostgreSQL schema and review its logical and physical design in one run",
+  "author": {
+    "name": "greenstevester"
+  },
+  "homepage": "https://github.com/greenstevester/db-architecture-reviewer/blob/main/skills/db-architecture-review/SKILL.md",
+  "repository": "https://github.com/greenstevester/db-architecture-reviewer",
+  "license": "MIT",
+  "keywords": ["postgresql", "schema", "database", "review", "documentation", "data-model"]
+}
