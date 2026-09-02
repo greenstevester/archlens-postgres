@@ -8,9 +8,9 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
 import {
-  Reviewer, bundleThree, describeRelationship, escapeHtml, modelToJson, parseSchema, relationships,
-  svgErd, threeDir, writeHtml, writeMarkdown,
-  type Finding, type Table,
+  Reviewer, bundleThree, dependencyDepths, describeRelationship, escapeHtml, hubTables, modelToJson,
+  parseSchema, relationships, schema3dModel, svgErd, threeDir, writeHtml, writeMarkdown,
+  type Finding, type Schema3dModel, type Table,
 } from '../scripts/db-review.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -939,5 +939,83 @@ describe('bundleThree', () => {
     // equality would otherwise reject an object built inside it.
     vm.runInNewContext(`${bundle}\nresult = JSON.stringify({ rev: THREE.REVISION, renderer: typeof THREE.WebGLRenderer, orbit: typeof OrbitControls, v3: typeof THREE.Vector3 });`, ctx);
     assert.deepEqual(JSON.parse(ctx.result as string), { rev: '185', renderer: 'function', orbit: 'function', v3: 'function' });
+  });
+});
+
+describe('schema3dModel', () => {
+  let tables: Map<string, Table>;
+  let model: Schema3dModel;
+  before(async () => {
+    ({ tables } = await parseSchema(read('examples/sample-schema.sql'), 'examples/sample-schema.sql'));
+    const narratives = json('examples/narratives.json');
+    const findings = new Reviewer(tables, narratives).run();
+    model = schema3dModel(tables, narratives, findings, 'examples/sample-schema.sql');
+  });
+
+  it('has one entry per table and per foreign key', () => {
+    assert.equal(model.tables.length, tables.size);
+    assert.equal(model.fks.length, [...tables.values()].reduce((n, t) => n + t.fks.length, 0));
+    assert.equal(model.title, 'Portal database');
+    assert.equal(model.source, 'examples/sample-schema.sql');
+  });
+
+  it('carries every field the panel reads on every foreign key', () => {
+    const fields = ['child', 'columns', 'parent', 'ref_columns', 'name', 'cardinality', 'nullable', 'unique',
+      'indexed', 'on_delete', 'why', 'words', 'findings'];
+    for (const fk of model.fks) {
+      for (const k of fields) assert.ok(k in fk, `${k} missing on ${fk.child}.${fk.columns.join(',')}`);
+      assert.match(fk.words, /^one .* · (required|optional) · ON DELETE /);
+    }
+  });
+
+  it('attaches fk-index findings to their key and primary-key findings to their table', () => {
+    const keyed = model.fks.flatMap((fk) => fk.findings.map((f) => f.check));
+    const tabled = model.tables.flatMap((t) => t.findings.map((f) => f.check));
+    assert.ok(keyed.includes('fk-index'));
+    assert.ok(!tabled.includes('fk-index'));
+    assert.ok(tabled.includes('primary-key'));
+    assert.ok(!keyed.includes('primary-key'));
+    const sessions = model.fks.find((fk) => fk.child === 'sessions' && fk.columns.join() === 'user_id')!;
+    assert.deepEqual(sessions.findings.map((f) => f.check), ['fk-index']);
+  });
+
+  it('names tenant as the only hub of the sample (10 of 18 other tables)', () => {
+    assert.deepEqual(model.hubs, ['tenant']);
+    assert.deepEqual(hubTables(tables), ['tenant']);
+  });
+
+  it('gives every table a domain that exists in the domain list, with a colour', () => {
+    const keys = new Map(model.domains.map((d) => [d.key, d]));
+    for (const t of model.tables) assert.ok(keys.has(t.domain), `${t.name} → ${t.domain}`);
+    for (const d of model.domains) assert.match(d.color, /^#[0-9a-f]{6}$/);
+    assert.deepEqual(model.domains.map((d) => d.key), ['tenant', 'auth', 'permission', 'github', 'approvals', 'billing', 'unclaimed']);
+  });
+
+  it('puts the table no domain claims (legacy_import_staging) into an unclaimed domain, listed last', () => {
+    assert.equal(model.tables.find((t) => t.name === 'legacy_import_staging')!.domain, 'unclaimed');
+    assert.equal(model.domains.at(-1)!.title, 'Unclaimed');
+    assert.equal(model.domains.at(-1)!.color, '#7f8a99');
+  });
+
+  it('without narratives, groups tables by dependency depth', async () => {
+    const { tables: bare } = await parseSchema(read('examples/sample-schema.sql'), 'examples/sample-schema.sql');
+    const m = schema3dModel(bare, {}, [], 'examples/sample-schema.sql');
+    assert.ok(m.domains.length > 1);
+    assert.ok(m.domains.every((d) => /^depth-\d+$/.test(d.key)));
+    assert.equal(m.tables.find((t) => t.name === 'provider')!.domain, 'depth-0');
+    assert.equal(m.tables.find((t) => t.name === 'tenant')!.domain, 'depth-1');
+    assert.equal(m.title, 'Database');
+    const depth = dependencyDepths(bare);
+    assert.equal(depth.get('provider'), 0);
+    assert.equal(depth.get('tenant'), 1);
+  });
+
+  it('names org as the hub of the edge-case fixture (6 of 9 other tables) and cuts its site/region cycle', async () => {
+    const { tables: edge } = await parseSchema(read('test/fixtures/edge-cases.sql'), 'test/fixtures/edge-cases.sql');
+    assert.deepEqual(hubTables(edge), ['org']);
+    // site and region reference each other; without the cut, dependencyDepths would never return.
+    const depth = dependencyDepths(edge);
+    assert.equal(depth.get('site'), 1);
+    assert.equal(depth.get('region'), 2);
   });
 });

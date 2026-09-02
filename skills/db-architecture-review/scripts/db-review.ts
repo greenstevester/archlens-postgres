@@ -1950,6 +1950,128 @@ export function bundleThree(dir: string): string {
     + '/* three:end */\n';
 }
 
+export interface Schema3dFinding { id: string; severity: Severity; title: string; check: string }
+export interface Schema3dColumn { name: string; type: string; pk: boolean; fk: boolean; not_null: boolean }
+export interface Schema3dTable {
+  name: string;
+  domain: string;
+  description: string;
+  source_line: number;
+  columns: Schema3dColumn[];
+  findings: Schema3dFinding[];
+}
+export interface Schema3dFk {
+  child: string;
+  columns: string[];
+  parent: string;
+  ref_columns: string[];
+  name: string | null;
+  cardinality: string;
+  nullable: boolean;
+  unique: boolean;
+  indexed: boolean;
+  on_delete: string;
+  why: string | null;
+  words: string;
+  findings: Schema3dFinding[];
+}
+export interface Schema3dDomain { key: string; title: string; blurb: string; color: string }
+export interface Schema3dModel {
+  title: string;
+  source: string;
+  domains: Schema3dDomain[];
+  tables: Schema3dTable[];
+  fks: Schema3dFk[];
+  hubs: string[];
+}
+
+// Twelve colours by domain position, cycling past twelve; grey for tables no domain claims.
+const PALETTE = ['#f5c542', '#4f8cff', '#38c7d6', '#3ecf8e', '#ff7a59', '#c27cff',
+  '#ff5e8a', '#a3d139', '#f08a24', '#e06bd1', '#8fa3bf', '#5ad1b0'];
+const UNCLAIMED_COLOR = '#7f8a99';
+/** Checks whose finding is about one foreign key rather than the table as a whole. */
+const KEY_CHECKS = new Set(['fk-index', 'fk-nullable', 'fk-on-delete', 'cardinality', 'undocumented-relationship']);
+
+/** Longest parent chain above each table, memoized; a cycle is cut where it closes (svgErd() layers the same way). */
+export function dependencyDepths(tables: Map<string, Table>): Map<string, number> {
+  const depth = new Map<string, number>();
+  const visiting = new Set<string>();
+  const depthOf = (n: string): number => {
+    if (depth.has(n)) return depth.get(n)!;
+    if (visiting.has(n)) return 0;
+    visiting.add(n);
+    const parents = tables.get(n)!.fks.map((fk) => fk.ref_table).filter((p) => p !== n && tables.has(p));
+    const d = parents.reduce((m, p) => Math.max(m, depthOf(p) + 1), 0);
+    visiting.delete(n);
+    depth.set(n, d);
+    return d;
+  };
+  for (const n of tables.keys()) depthOf(n);
+  return depth;
+}
+
+/** Tables whose inbound foreign keys number at least a third of the other tables, and at least four; most-referenced first. */
+export function hubTables(tables: Map<string, Table>): string[] {
+  const min = Math.max(4, Math.ceil((tables.size - 1) / 3));
+  const inbound = (n: string): number => tables.get(n)!.referenced_by.length;
+  return [...tables.keys()].filter((n) => inbound(n) >= min)
+    .sort((a, b) => inbound(b) - inbound(a) || (a < b ? -1 : 1));
+}
+
+/** Everything schema-3d.html needs, from the same objects the other writers use. */
+export function schema3dModel(tables: Map<string, Table>, narratives: Narratives, findings: Finding[], source: string): Schema3dModel {
+  const fmap = new Map(findings.map((f) => [f.id, f]));
+  const brief = (f: Finding): Schema3dFinding => ({ id: f.id, severity: f.severity, title: f.title, check: f.check });
+  const declared = (narratives.domains ?? []) as Narratives[];
+  const domains: Schema3dDomain[] = declared.map((d, i) => ({
+    key: d.key as string, title: (d.title ?? d.key) as string, blurb: (d.blurb ?? '') as string, color: PALETTE[i % PALETTE.length],
+  }));
+  const domainOf = new Map<string, string>();
+  if (declared.length) {
+    for (const t of tables.values()) domainOf.set(t.name, t.domain ?? 'unclaimed');
+    if ([...tables.values()].some((t) => t.domain === null)) {
+      domains.push({ key: 'unclaimed', title: 'Unclaimed', blurb: 'Present in the schema, absent from every domain.', color: UNCLAIMED_COLOR });
+    }
+  } else {
+    const depth = dependencyDepths(tables);
+    const deepest = Math.max(0, ...depth.values());
+    for (let d = 0; d <= deepest; d += 1) {
+      domains.push({
+        key: `depth-${d}`,
+        title: d === 0 ? 'Depth 0: tables that depend on nothing' : `Depth ${d}: ${d} step${d === 1 ? '' : 's'} below a root`,
+        blurb: '', color: PALETTE[d % PALETTE.length],
+      });
+    }
+    for (const t of tables.values()) domainOf.set(t.name, `depth-${depth.get(t.name)}`);
+  }
+
+  const out: Schema3dTable[] = [];
+  const fks: Schema3dFk[] = [];
+  for (const t of tables.values()) {
+    const mine = t.findings.flatMap((id) => { const f = fmap.get(id); return f ? [f] : []; });
+    const taken = new Set<Finding>();
+    const rels = relationships(t, narratives);
+    t.fks.forEach((fk, i) => {
+      const onKey = mine.filter((f) => KEY_CHECKS.has(f.check) && f.columns.length > 0 && sameSet(f.columns, fk.columns));
+      onKey.forEach((f) => taken.add(f));
+      fks.push({
+        child: t.name, columns: fk.columns, parent: fk.ref_table, ref_columns: fk.ref_columns, name: fk.name,
+        cardinality: fk.cardinality, nullable: fk.nullable, unique: fk.unique, indexed: fk.indexed, on_delete: fk.on_delete,
+        why: rels[i].why, words: describeRelationship(rels[i]), findings: onKey.map(brief),
+      });
+    });
+    out.push({
+      name: t.name, domain: domainOf.get(t.name)!, description: t.description.join(' '), source_line: t.source_line,
+      columns: t.columns.map((c) => ({ name: c.name, type: c.type, pk: c.is_pk, fk: c.is_fk, not_null: c.not_null })),
+      findings: mine.filter((f) => !taken.has(f)).map(brief),
+    });
+  }
+  return {
+    title: ((narratives.database ?? {}).title ?? 'Database') as string,
+    source, domains, tables: out, fks, hubs: hubTables(tables),
+  };
+}
+
 // ----------------------------------------------------------------------------
 // CLI
 // ----------------------------------------------------------------------------
