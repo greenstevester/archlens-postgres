@@ -9,6 +9,25 @@ The version in `.claude-plugin/marketplace.json`, `.claude-plugin/plugin.json`,
 `skills/db-architecture-review/package.json` always match the tag. Users only receive an
 update when the marketplace entry's version changes.
 
+## [1.6.0](https://github.com/greenstevester/db-architecture-reviewer/releases/tag/v1.6.0) — 2026-09-02
+
+`fk-index` says what the index it asks for will cost, and asks for the cheaper one where
+that is the right instrument.
+
+**Changed**
+
+- A nullable foreign key gets a **partial** index, `WHERE col IS NOT NULL`. Nullable foreign
+  keys are overwhelmingly audit columns that are NULL for almost every row, so those rows are
+  not indexed at all. Measured on a 500k-row table: 200k inserts at 1006 ms bare, 1119 ms
+  with a full index, 1046 ms partial; the constraint check at 20.177 ms bare, 0.159 ms full,
+  0.040 ms partial — 4% on writes rather than 11%, and faster on the check than a full index.
+  A `NOT NULL` foreign key still gets a plain index.
+- The `detail` prices the index rather than only praising it: every write maintains it, it
+  takes disk, and if the parent's rows are never deleted or re-keyed the scan never happens
+  and the index only costs.
+
+No finding appears or disappears — counts and severities are identical on both fixtures.
+
 ## [1.5.0](https://github.com/greenstevester/db-architecture-reviewer/releases/tag/v1.5.0) — 2026-09-02
 
 A finding you have reviewed and judged wrong can be recorded as such, instead of being
