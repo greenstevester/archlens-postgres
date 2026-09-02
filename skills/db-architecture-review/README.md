@@ -14,6 +14,7 @@ produces
 ```
 docs/database/
 ├── index.html      self-contained browsable docs, findings inline, filter box, a whole-schema SVG diagram plus an inline SVG diagram and a relationship list per domain
+├── schema-3d.html  rotatable 3D view of the whole schema: one island per domain, every foreign key as an arc, click any table or relationship for its detail. Self-contained, about 1 MB
 ├── schema.json     the model + findings (input for the Claude Code judgment pass)
 ├── README.md       markdown index embedding the whole-schema diagram
 ├── erd.svg         whole-schema entity-relationship diagram (plain SVG, renders anywhere)
@@ -26,7 +27,7 @@ and exits `1` if any error-severity finding exists (`--fail-on` to tune).
 ## Install
 
 ```
-npm install                 # one dependency: libpg-query, a WebAssembly build of the real PostgreSQL parser
+npm install                 # two dependencies, both pinned: libpg-query (the real PostgreSQL parser as WebAssembly) and three (inlined into schema-3d.html)
 ```
 
 Node 24 or newer. Node runs the `.ts` file directly, so there is no build step.
