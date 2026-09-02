@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
 import {
-  Reviewer, describeRelationship, escapeHtml, modelToJson, parseSchema, relationships, svgErd,
-  writeHtml, writeMarkdown,
+  Reviewer, bundleThree, describeRelationship, escapeHtml, modelToJson, parseSchema, relationships,
+  svgErd, threeDir, writeHtml, writeMarkdown,
   type Finding, type Table,
 } from '../scripts/db-review.ts';
 
@@ -924,5 +925,19 @@ describe('fk-index suggests the cheaper index and prices it', () => {
     assert.deepEqual(found.map((f) => f.columns).sort(),
       [['created_by'], ['org_id', 'user_id'], ['owner_id']].sort());
     for (const f of found) assert.equal(f.title, 'Foreign key without index');
+  });
+});
+
+describe('bundleThree', () => {
+  it('rewrites the pinned Three.js modules into one classic script that runs', () => {
+    const bundle = bundleThree(threeDir());
+    assert.match(bundle, /^\/\* three:start Three\.js 0\.185\.1 /);
+    assert.match(bundle, /\/\* three:end \*\/\n$/);
+    // A classic script may not contain module syntax; the sandbox would throw a SyntaxError.
+    const ctx: Record<string, unknown> = {};
+    // The sandbox realm has its own Object.prototype, so hand the result out as JSON: strict deep
+    // equality would otherwise reject an object built inside it.
+    vm.runInNewContext(`${bundle}\nresult = JSON.stringify({ rev: THREE.REVISION, renderer: typeof THREE.WebGLRenderer, orbit: typeof OrbitControls, v3: typeof THREE.Vector3 });`, ctx);
+    assert.deepEqual(JSON.parse(ctx.result as string), { rev: '185', renderer: 'function', orbit: 'function', v3: 'function' });
   });
 });

@@ -21,6 +21,7 @@
  * Requires: Node 24+, libpg-query  (npm install)
  */
 import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -1881,6 +1882,72 @@ export function writeHtml(outdir: string, tables: Map<string, Table>, narratives
     + `<input type="search" placeholder="Filter tables and columns"/>${nav.join('')}</nav>`
     + `<main>${body.join('')}</main><script>${JS}</script></body></html>`;
   writeFileSync(path.join(outdir, 'index.html'), page);
+}
+
+// ----------------------------------------------------------------------------
+// 3D explorer: vendored Three.js, model, writer
+// ----------------------------------------------------------------------------
+
+const THREE_FILES = {
+  core: 'build/three.core.min.js',
+  main: 'build/three.module.min.js',
+  orbit: 'examples/jsm/controls/OrbitControls.js',
+};
+/** How three.module.min.js names its core chunk in its own import and re-export. */
+const CORE_CHUNK = './three.core.min.js';
+
+/** Where npm put three. Its exports map hides package.json, so resolve the main entry
+ *  (build/three.cjs) and step up out of build/. */
+export function threeDir(): string {
+  return path.resolve(path.dirname(createRequire(import.meta.url).resolve('three')), '..');
+}
+
+/** `export{a as Name,b}` at the end of a module becomes `return{Name:a,b:b}`. */
+function exportToReturn(src: string): string {
+  return src.replace(/export\s*\{([^}]*)\};?\s*$/, (_, list: string) =>
+    `return{${list.split(',').map((p) => p.trim()).filter(Boolean).map((p) => {
+      const [local, exported] = p.split(/\s+as\s+/);
+      return `${exported ?? local}:${local}`;
+    }).join(',')}};`);
+}
+
+/** `import{Name as a,b}from"<from>"` becomes `const{Name:a,b}=<obj>;`. */
+function importToConst(src: string, from: string, obj: string): string {
+  const quoted = from.replace(/[./]/g, '\\$&');
+  return src.replace(new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*['"]${quoted}['"];?`), (_, list: string) =>
+    `const{${list.split(',').map((p) => {
+      const [imported, local] = p.trim().split(/\s+as\s+/);
+      return local ? `${imported}:${local}` : imported;
+    }).filter(Boolean).join(',')}}=${obj};`);
+}
+
+/** `export{a,b}from"<from>"` re-exports vanish: the merged THREE object carries those names already. */
+function dropReexports(src: string, from: string): string {
+  const quoted = from.replace(/[./]/g, '\\$&');
+  return src.replace(new RegExp(`export\\s*\\{[^}]*\\}\\s*from\\s*['"]${quoted}['"];?`, 'g'), '');
+}
+
+/**
+ * Three.js as one classic script defining `THREE` and `OrbitControls`. The npm package ships only
+ * ES modules, which an inline <script> cannot import, so each file is wrapped in a function that
+ * returns its exports and every import becomes destructuring from the previous one.
+ * ponytail: four regular expressions against a pinned input, held by the bundleThree test. If an
+ * upgrade changes the file shape, wrap build/three.cjs (2.1 MB, no require calls) whole instead.
+ */
+export function bundleThree(dir: string): string {
+  const src = (f: string): string => readFileSync(path.join(dir, f), 'utf8');
+  const version = JSON.parse(src('package.json')).version as string;
+  const core = exportToReturn(src(THREE_FILES.core));
+  const mainSrc = dropReexports(importToConst(src(THREE_FILES.main), CORE_CHUNK, 'THREE_CORE'), CORE_CHUNK);
+  const main = exportToReturn(mainSrc);
+  const orbit = importToConst(src(THREE_FILES.orbit), 'three', 'THREE')
+    .replace(/export\s*\{\s*OrbitControls\s*\};?/, 'return OrbitControls;');
+  return `/* three:start Three.js ${version} MIT https://threejs.org */\n`
+    + `const THREE_CORE=(()=>{${core}})();\n`
+    + `const THREE_MAIN=(()=>{${main}})();\n`
+    + 'const THREE={...THREE_CORE,...THREE_MAIN};\n'
+    + `const OrbitControls=(()=>{${orbit}})();\n`
+    + '/* three:end */\n';
 }
 
 // ----------------------------------------------------------------------------
