@@ -400,6 +400,9 @@
     renderer.render(scene, camera);
     requestAnimationFrame(tick);
   }
+  // A link into an already-open page changes only the fragment, which does not reload; follow it.
+  // setHash() uses replaceState, which fires no hashchange, so selecting never loops back here.
+  addEventListener('hashchange', () => { if (!openHash()) clear(); });
   restyle();
   if (!openHash()) announce(`${M.tables.length} tables in ${L.islands.length} domains. Click a table or a line for its detail.`);
   requestAnimationFrame(tick);
