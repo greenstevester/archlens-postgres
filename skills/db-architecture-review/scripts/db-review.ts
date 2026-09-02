@@ -14,6 +14,7 @@
  *     <out>/README.md       markdown index + per-domain pages with SVG ERDs
  *     <out>/erd.svg         whole-schema entity-relationship diagram (one more per domain)
  *     <out>/FINDINGS.md     findings grouped by severity with fix suggestions
+ *     <out>/schema-3d.html  rotatable 3D view: domain islands, every foreign key as an arc
  *
  * Exit code is non-zero when findings at or above --fail-on exist, so this can
  * gate CI the same way a linter does.
@@ -2072,6 +2073,51 @@ export function schema3dModel(tables: Map<string, Table>, narratives: Narratives
   };
 }
 
+const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
+
+/** A module's `export` keywords removed, so it can be inlined as a classic script. */
+function inlineModule(src: string): string {
+  return src.replace(/^export (?=(function|const|let|class)\b)/gm, '');
+}
+
+/**
+ * One self-contained page: the model as JSON, Three.js rewritten as a classic script, the layout
+ * module and the app. It loads nothing, so it opens from disk, an email or a USB stick.
+ */
+export function writeSchema3d(outdir: string, model: Schema3dModel, three: string = bundleThree(threeDir())): void {
+  const e = escapeHtml;
+  const asset = (f: string): string => readFileSync(path.join(SCRIPTS_DIR, f), 'utf8');
+  // `<` becomes < so a table comment containing </script> cannot end the script early.
+  const data = JSON.stringify(model).replace(/</g, '\\u003c');
+  const page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + `<title>${e(model.title)} — 3D schema explorer</title><style>${asset('schema-3d.css')}</style></head><body>\n`
+    + '<div id="scene" role="application" aria-label="3D schema explorer">'
+    + '<div class="ov tl">'
+    + '<label class="sr" for="q">Find table or column</label>'
+    + '<input id="q" type="search" placeholder="Find table or column… ( / )" autocomplete="off">'
+    + '<div class="row"><span class="lbl">Hub edges</span>'
+    + '<span class="seg" id="hubseg" role="group" aria-label="Hub edges">'
+    + '<button type="button" data-m="all" class="on" aria-pressed="true">All</button>'
+    + '<button type="button" data-m="muted" aria-pressed="false">Muted</button>'
+    + '<button type="button" data-m="hidden" aria-pressed="false">Hidden</button></span>'
+    + '<span id="hubinfo" class="lbl"></span>'
+    + '<button type="button" id="reset" class="plain">Reset view (Esc)</button></div>'
+    + '<div class="chips" id="chips" role="group" aria-label="Domains"></div></div>'
+    + '<div class="ov help">drag rotate · right-drag pan · scroll zoom · click a table or a line · double-click flies there · Esc clears</div>'
+    + '<div id="tip" role="tooltip"></div>'
+    + '<aside class="panel" id="panel" aria-label="Detail"></aside>'
+    + '<p id="live" class="sr" aria-live="polite"></p>'
+    + '<div id="nowebgl" hidden><p>This page needs WebGL, which this browser has turned off. The flat diagram is in <a href="index.html#schema">index.html</a>.</p></div>'
+    + '</div>\n'
+    + `<footer>Generated from <code>${e(model.source)}</code> on ${localToday()} · <a href="index.html">Docs and findings</a></footer>\n`
+    + `<script>window.SCHEMA3D=${data};</script>\n`
+    + `<script>${three}</script>\n`
+    + `<script>${inlineModule(asset('schema-3d-layout.js'))}</script>\n`
+    + `<script>${asset('schema-3d-app.js')}</script>\n`
+    + '</body></html>\n';
+  writeFileSync(path.join(outdir, 'schema-3d.html'), page);
+}
+
 // ----------------------------------------------------------------------------
 // CLI
 // ----------------------------------------------------------------------------
@@ -2168,6 +2214,7 @@ export async function main(argv: string[]): Promise<number> {
   writeFileSync(path.join(outdir, 'schema.json'), JSON.stringify(doc, null, 2));
   writeMarkdown(outdir, tables, narratives, findings, doc.stats, dismissed);
   writeHtml(outdir, tables, narratives, findings, doc.stats, schemaPath);
+  writeSchema3d(outdir, schema3dModel(tables, narratives, findings, schemaPath));
 
   const s = doc.stats.findings as Record<Severity, number>;
   if (!values.quiet) {

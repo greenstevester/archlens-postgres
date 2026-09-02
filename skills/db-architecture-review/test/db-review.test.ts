@@ -9,7 +9,7 @@ import vm from 'node:vm';
 
 import {
   Reviewer, bundleThree, dependencyDepths, describeRelationship, escapeHtml, hubTables, modelToJson,
-  parseSchema, relationships, schema3dModel, svgErd, threeDir, writeHtml, writeMarkdown,
+  parseSchema, relationships, schema3dModel, svgErd, threeDir, writeHtml, writeMarkdown, writeSchema3d,
   type Finding, type Schema3dModel, type Table,
 } from '../scripts/db-review.ts';
 import { CARD, ISLAND_GAP, depths, layout } from '../scripts/schema-3d-layout.js';
@@ -1103,5 +1103,75 @@ describe('schema-3d layout', () => {
     assert.ok(L.islands.length > 1);
     assert.ok(L.islands.every((i) => i.key.startsWith('depth-')));
     assert.equal(L.islands.find((i) => i.cx === 0 && i.cz === 0)!.key, 'depth-1', 'tenant, the hub, sits at depth 1');
+  });
+});
+
+describe('schema-3d.html', () => {
+  const ddl = `
+    -- The organisation. </script><b>not html</b>
+    CREATE TABLE org (id BIGINT PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE widget (id UUID PRIMARY KEY, org_id BIGINT NOT NULL REFERENCES org(id) ON DELETE CASCADE);
+    CREATE TABLE note (id UUID PRIMARY KEY, widget_id UUID REFERENCES widget(id), parent_id UUID REFERENCES note(id));`;
+  const narratives = {
+    database: { title: 'Informer', blurb: 'b' },
+    domains: [
+      { key: 'core', title: 'Core', blurb: 'c', tenant_scoped: false, tables: ['org'] },
+      { key: 'work', title: 'Work', blurb: 'w', tenant_scoped: false, tables: ['widget', 'note'] },
+    ],
+    assertions: { cardinality: [{ parent: 'org', child: 'widget', expect: '1:N', why: 'a widget is built by one organisation' }] },
+  };
+  let out = '';
+  let html = '';
+  before(async () => {
+    const { tables } = await parseSchema(ddl, 'inline');
+    const findings = new Reviewer(tables, narratives).run();
+    out = mkdtempSync(path.join(tmpdir(), 'db-review-3d-'));
+    writeSchema3d(out, schema3dModel(tables, narratives, findings, 'inline'));
+    html = readFileSync(path.join(out, 'schema-3d.html'), 'utf8');
+  });
+  after(() => rmSync(out, { recursive: true, force: true }));
+
+  it('is one self-contained page: model, Three.js, layout and app inline, nothing from the web', () => {
+    assert.match(html, /^<!doctype html>/);
+    assert.match(html, /<title>Informer — 3D schema explorer<\/title>/);
+    assert.match(html, /<script>window\.SCHEMA3D=\{"title":"Informer"/);
+    assert.match(html, /\/\* three:start Three\.js 0\.185\.1/);
+    assert.match(html, /\/\* three:end \*\//);
+    assert.match(html, /\nfunction layout\(model\)/);
+    assert.match(html, /\nconst CARD = /);
+    assert.doesNotMatch(html, /^export /m);
+    assert.doesNotMatch(html, /(src|href)="http/);
+    assert.doesNotMatch(html, /importmap/);
+    assert.match(html, /Generated from <code>inline<\/code> on \d{4}-\d{2}-\d{2}/);
+  });
+
+  it('escapes the model so a table comment cannot close the script', () => {
+    assert.ok(!html.includes('</script><b>'), 'raw </script> from a comment leaked into the page');
+    assert.match(html, /\\u003c\/script>\\u003cb>/);
+  });
+
+  it('carries the why, the words and the self-reference', () => {
+    assert.match(html, /"why":"a widget is built by one organisation"/);
+    assert.match(html, /"words":"one org, many widget · required · ON DELETE CASCADE · not indexed"/);
+    assert.match(html, /"child":"note","columns":\["parent_id"\],"parent":"note"/);
+  });
+
+  it('has the controls the app looks up by id, each with a name', () => {
+    for (const id of ['scene', 'q', 'hubseg', 'hubinfo', 'reset', 'chips', 'tip', 'panel', 'live', 'nowebgl']) {
+      assert.match(html, new RegExp(` id="${id}"`), `#${id} missing`);
+    }
+    assert.match(html, /<label class="sr" for="q">/);
+    assert.match(html, /aria-live="polite"/);
+    assert.match(html, /aria-label="Domains"/);
+  });
+
+  it('is deterministic apart from the date line', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'db-review-3d-again-'));
+    try {
+      writeSchema3d(dir, JSON.parse(html.match(/window\.SCHEMA3D=(\{.*?\});<\/script>/)![1].replace(/\\u003c/g, '<')));
+      assert.equal(stable(readFileSync(path.join(dir, 'schema-3d.html'), 'utf8')), stable(html));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
