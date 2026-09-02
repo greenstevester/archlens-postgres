@@ -90,9 +90,15 @@ RLS: off
 
 Findings:
 
-- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `org` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan.
-- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `widget` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan.
-- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `ticket` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan.
+- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `org` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `attachment` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `org` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
+- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `widget` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `attachment` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `widget` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
+- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `ticket` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `attachment` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `ticket` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
 - **Note** Tenant FK relies on the default ON DELETE NO ACTION — Deleting a `org` row will fail while `attachment` rows exist. Fine if tenants are never hard-deleted; a surprise the day offboarding/GDPR erasure is built.
 - **Note** Relationship has no narrative — `attachment.ticket_id` → `ticket` is one ticket, many attachment · optional · ON DELETE NO ACTION · not indexed, but narratives.json does not say why the relationship exists, so the docs show the constraint and nothing else.
 - **Error** Tenant table without row-level security — `attachment` carries `org_id` but RLS is not enabled, so isolation depends entirely on every query remembering the WHERE clause. One forgotten filter is a cross-tenant leak.
@@ -156,7 +162,9 @@ RLS: off
 
 Findings:
 
-- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `site` must scan `region` to check the constraint, and every join from the parent side is a sequential scan.
+- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `site` must scan `region` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `region` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `site` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
 - **Note** Nullable foreign key — `region.lead_id` may be NULL, so the relationship to `site` is optional. That is legitimate (e.g. approved_by before approval) but often a modelling shrug: a row with no owner, or two nullable FKs that are secretly an either/or.
 - **Note** Tenant FK relies on the default ON DELETE NO ACTION — Deleting a `org` row will fail while `region` rows exist. Fine if tenants are never hard-deleted; a surprise the day offboarding/GDPR erasure is built.
 - **Note** Relationship has no narrative — `region.lead_id` → `site` is one site, many region · optional · ON DELETE SET DEFAULT · not indexed, but narratives.json does not say why the relationship exists, so the docs show the constraint and nothing else.
@@ -177,7 +185,9 @@ RLS: off
 
 Findings:
 
-- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `region` must scan `site` to check the constraint, and every join from the parent side is a sequential scan.
+- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `region` must scan `site` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `site` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `region` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
 - **Error** Asserted natural key is not enforced — `(org_id, region)` is declared to identify a `site` row, but nothing enforces it. Retries, double-submits and webhook redeliveries create duplicates.
 - **Error** Tenant table without row-level security — `site` carries `org_id` but RLS is not enabled, so isolation depends entirely on every query remembering the WHERE clause. One forgotten filter is a cross-tenant leak.
 
