@@ -76,8 +76,12 @@ RLS: off
 Findings:
 
 - **Error** No primary key — Without a primary key rows are not individually addressable: no safe UPDATE/DELETE of one row, no logical replication, ORMs misbehave, and duplicates are legal.
-- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `user_role` to check the constraint, and every join from the parent side is a sequential scan.
-- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `role` must scan `user_role` to check the constraint, and every join from the parent side is a sequential scan.
+- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `user_role` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `user_role` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `users` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
+- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `role` must scan `user_role` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `user_role` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `role` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
 - **Error** Junction table allows duplicate links — `user_role` looks like a many-to-many link table but has no unique constraint across (role_id, user_id). The same pair can be inserted twice; every join through it will double-count.
 - **Note** No `tenant_id`; tenant only reachable via 2 join(s) — `user_role` belongs to a tenant only transitively (user_role → users → tenant). Row-level security, per-tenant export/erasure, and per-tenant sharding all need that join. It works at 10 tenants and hurts at 1,000.
 

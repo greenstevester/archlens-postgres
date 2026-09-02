@@ -85,32 +85,38 @@ ALTER TABLE webhook_delivery ADD CONSTRAINT webhook_delivery_delivery_guid_key U
 
 ### F008 · approval_request `service_request_id` — Foreign key without index
 
-PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `service_request` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan.
+PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `service_request` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
 
-**Fix:** Add an index on the FK column(s).
+An index is not free. Every write to `approval_request` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `service_request` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
+
+**Fix:** Add a partial index, scoped to the rows that have a value. `service_request_id` is nullable, so the NULL rows are not indexed at all and the write cost is a fraction of a full index, while the constraint check still uses it.
 
 ```sql
-CREATE INDEX CONCURRENTLY idx_approval_request_service_request_id ON approval_request(service_request_id);
+CREATE INDEX CONCURRENTLY idx_approval_request_service_request_id ON approval_request(service_request_id) WHERE service_request_id IS NOT NULL;
 ```
 
 ### F009 · approval_request `deployment_id` — Foreign key without index
 
-PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `deployment` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan.
+PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `deployment` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
 
-**Fix:** Add an index on the FK column(s).
+An index is not free. Every write to `approval_request` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `deployment` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
+
+**Fix:** Add a partial index, scoped to the rows that have a value. `deployment_id` is nullable, so the NULL rows are not indexed at all and the write cost is a fraction of a full index, while the constraint check still uses it.
 
 ```sql
-CREATE INDEX CONCURRENTLY idx_approval_request_deployment_id ON approval_request(deployment_id);
+CREATE INDEX CONCURRENTLY idx_approval_request_deployment_id ON approval_request(deployment_id) WHERE deployment_id IS NOT NULL;
 ```
 
 ### F010 · approval_request `approved_by` — Foreign key without index
 
-PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan.
+PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
 
-**Fix:** Add an index on the FK column(s).
+An index is not free. Every write to `approval_request` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `users` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
+
+**Fix:** Add a partial index, scoped to the rows that have a value. `approved_by` is nullable, so the NULL rows are not indexed at all and the write cost is a fraction of a full index, while the constraint check still uses it.
 
 ```sql
-CREATE INDEX CONCURRENTLY idx_approval_request_approved_by ON approval_request(approved_by);
+CREATE INDEX CONCURRENTLY idx_approval_request_approved_by ON approval_request(approved_by) WHERE approved_by IS NOT NULL;
 ```
 
 ### F026 · approval_request `service_request_id, deployment_id` — Either/or foreign keys without a CHECK
@@ -141,12 +147,14 @@ ALTER TABLE audit_event ADD CONSTRAINT audit_event_actor_type_check CHECK (actor
 
 ### F006 · github_app_config `created_by` — Foreign key without index
 
-PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `github_app_config` to check the constraint, and every join from the parent side is a sequential scan.
+PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `github_app_config` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
 
-**Fix:** Add an index on the FK column(s).
+An index is not free. Every write to `github_app_config` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `users` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
+
+**Fix:** Add a partial index, scoped to the rows that have a value. `created_by` is nullable, so the NULL rows are not indexed at all and the write cost is a fraction of a full index, while the constraint check still uses it.
 
 ```sql
-CREATE INDEX CONCURRENTLY idx_github_app_config_created_by ON github_app_config(created_by);
+CREATE INDEX CONCURRENTLY idx_github_app_config_created_by ON github_app_config(created_by) WHERE created_by IS NOT NULL;
 ```
 
 ### F020 · github_app_config `status` — Enum-like column with no CHECK
@@ -181,7 +189,9 @@ ALTER TABLE github_app_installation ADD CONSTRAINT github_app_installation_repos
 
 ### F003 · sessions `user_id` — Foreign key without index
 
-PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `sessions` to check the constraint, and every join from the parent side is a sequential scan.
+PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `sessions` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `sessions` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `users` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
 
 **Fix:** Add an index on the FK column(s).
 
@@ -207,7 +217,9 @@ ALTER TABLE tenant ADD CONSTRAINT tenant_status_check CHECK (status IN (...));
 
 ### F004 · user_role `user_id` — Foreign key without index
 
-PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `user_role` to check the constraint, and every join from the parent side is a sequential scan.
+PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `user_role` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `user_role` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `users` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
 
 **Fix:** Add an index on the FK column(s).
 
@@ -217,7 +229,9 @@ CREATE INDEX CONCURRENTLY idx_user_role_user_id ON user_role(user_id);
 
 ### F005 · user_role `role_id` — Foreign key without index
 
-PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `role` must scan `user_role` to check the constraint, and every join from the parent side is a sequential scan.
+PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `role` must scan `user_role` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `user_role` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `role` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
 
 **Fix:** Add an index on the FK column(s).
 
@@ -237,7 +251,9 @@ DROP CONSTRAINT/INDEX ...; CREATE UNIQUE INDEX users_email_live ON users(email) 
 
 ### F007 · webhook_delivery `installation_id` — Foreign key without index
 
-PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `github_app_installation` must scan `webhook_delivery` to check the constraint, and every join from the parent side is a sequential scan.
+PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `github_app_installation` must scan `webhook_delivery` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `webhook_delivery` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `github_app_installation` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
 
 **Fix:** Add an index on the FK column(s).
 

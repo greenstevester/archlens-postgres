@@ -110,7 +110,7 @@ docs/database/
 | rls-missing / rls-no-policy | error | tenant table without row-level security, or with it enabled but no policy |
 | tenant-unscoped | error | tenant-scoped domain, no path to the tenant at all |
 | tenant-derivable | warn (info for junctions) | no `tenant_id`, tenant only reachable via joins |
-| fk-index | warn | foreign-key column with no index (PostgreSQL does not add one) |
+| fk-index | warn | foreign-key column with no index (PostgreSQL does not add one); suggests a partial index for a nullable key and prices the write cost |
 | undocumented-enum | warn | short `status`/`type`/… string with no CHECK |
 | soft-delete-unique | warn | `deleted_at` + non-partial UNIQUE |
 | polymorphic-reference | warn | `x_type` + `x_id` pair with no foreign key |
