@@ -1092,6 +1092,21 @@ describe('schema-3d layout', () => {
     check({ title: 'x', source: 'x', domains, tables, fks, hubs: ['d0_t0'] });
   });
 
+  it('keeps the ring tight: the radius is the seating estimate widened at most three times', () => {
+    // The widening loop would also pass the overlap test from a radius of 1 after forty tries,
+    // leaving an absurdly sparse scene; this pins the starting estimate as well.
+    for (const m of [model, bare]) {
+      const L = layout(m);
+      const centre = L.islands.find((i) => i.cx === 0 && i.cz === 0)!;
+      const ring = L.islands.filter((i) => i !== centre);
+      const foot = (i: Island): number => Math.max(i.w, i.d);
+      const around = ring.reduce((s, i) => s + foot(i) + ISLAND_GAP, 0) / (2 * Math.PI);
+      const clear = (foot(centre) + Math.max(...ring.map(foot))) / 2 + ISLAND_GAP;
+      const estimate = Math.max(around, clear);
+      assert.ok(L.radius >= estimate - 1e-9 && L.radius <= estimate * 1.1 ** 3 + 1e-9, `radius ${L.radius} vs estimate ${estimate}`);
+    }
+  });
+
   it('places cards on a grid spaced for the column card, and gives the same answer twice', () => {
     const L = layout(model);
     assert.equal(JSON.stringify(L), JSON.stringify(layout(model)));
