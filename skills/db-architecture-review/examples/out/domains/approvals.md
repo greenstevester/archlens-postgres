@@ -72,9 +72,15 @@ RLS: enabled, policies: approval_request_tenant_isolation
 
 Findings:
 
-- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `service_request` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan.
-- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `deployment` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan.
-- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan.
+- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `service_request` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `approval_request` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `service_request` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
+- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `deployment` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `approval_request` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `deployment` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
+- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `approval_request` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `approval_request` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `users` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
 - **Note** Nullable foreign key — `approval_request.approved_by` may be NULL, so the relationship to `users` is optional. That is legitimate (e.g. approved_by before approval) but often a modelling shrug: a row with no owner, or two nullable FKs that are secretly an either/or.
 - **Warning** Either/or foreign keys without a CHECK — `approval_request` has several nullable FKs (service_request_id, deployment_id) that look like an exclusive arc — a row should point at exactly one of them. Nothing stops zero or both.
 

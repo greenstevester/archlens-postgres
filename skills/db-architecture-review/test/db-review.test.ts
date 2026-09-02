@@ -863,3 +863,66 @@ describe('dismissed findings in the output', () => {
     assert.ok(!findings.some((f) => f.check === 'fk-index'));
   });
 });
+
+// --- fk-index: the write tradeoff -------------------------------------------
+// An index is not free. Recommending one without pricing it is how a reviewer
+// loses the reader who already knows that. Nullable audit columns are the common
+// case and a partial index is the right instrument for them.
+
+describe('fk-index suggests the cheaper index and prices it', () => {
+  const ddl = `
+    CREATE TABLE users (id UUID PRIMARY KEY);
+    CREATE TABLE incidents (
+      id UUID PRIMARY KEY,
+      owner_id UUID NOT NULL REFERENCES users(id),
+      created_by UUID REFERENCES users(id)
+    );
+    CREATE TABLE memberships (
+      org_id UUID NOT NULL,
+      user_id UUID NOT NULL,
+      PRIMARY KEY (org_id, user_id)
+    );
+    CREATE TABLE audit (
+      id UUID PRIMARY KEY,
+      org_id UUID,
+      user_id UUID,
+      FOREIGN KEY (org_id, user_id) REFERENCES memberships(org_id, user_id)
+    );`;
+  let found: Finding[];
+  before(async () => {
+    const { tables } = await parseSchema(ddl, 'inline');
+    found = new Reviewer(tables, {}).run().filter((f) => f.check === 'fk-index');
+  });
+  const forCols = (...cols: string[]): Finding =>
+    found.find((f) => f.columns.join(',') === cols.join(','))!;
+
+  it('suggests a partial index for a nullable foreign key', () => {
+    const f = forCols('created_by');
+    assert.match(f.fix_sql, /WHERE created_by IS NOT NULL/);
+  });
+
+  it('suggests a plain index for a NOT NULL foreign key', () => {
+    const f = forCols('owner_id');
+    assert.doesNotMatch(f.fix_sql, /WHERE/);
+  });
+
+  it('says why the partial one is cheaper, not just that it is partial', () => {
+    assert.match(forCols('created_by').suggestion, /NULL/);
+    assert.match(forCols('created_by').suggestion, /writ/i);
+  });
+
+  it('prices the index in the detail, so the tradeoff is visible', () => {
+    for (const f of found) assert.match(f.detail, /writ/i);
+  });
+
+  it('guards every column of a composite key when any of them is nullable', () => {
+    const f = forCols('org_id', 'user_id');
+    assert.match(f.fix_sql, /WHERE org_id IS NOT NULL AND user_id IS NOT NULL/);
+  });
+
+  it('still names the finding and columns exactly as before', () => {
+    assert.deepEqual(found.map((f) => f.columns).sort(),
+      [['created_by'], ['org_id', 'user_id'], ['owner_id']].sort());
+    for (const f of found) assert.equal(f.title, 'Foreign key without index');
+  });
+});

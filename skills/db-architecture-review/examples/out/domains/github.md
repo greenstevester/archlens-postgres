@@ -38,7 +38,9 @@ RLS: off
 
 Findings:
 
-- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `github_app_config` to check the constraint, and every join from the parent side is a sequential scan.
+- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `users` must scan `github_app_config` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `github_app_config` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `users` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
 - **Note** Nullable foreign key — `github_app_config.created_by` may be NULL, so the relationship to `users` is optional. That is legitimate (e.g. approved_by before approval) but often a modelling shrug: a row with no owner, or two nullable FKs that are secretly an either/or.
 - **Warning** Enum-like column with no CHECK — `status` is a short string that clearly takes a fixed set of values, but the database accepts anything. Typos become new states, and nobody can list the legal values without reading application code.
 - **Note** Single-row configuration table — `github_app_config` is documented as holding exactly one row. Nothing enforces that (no unique constraint besides the PK), and the day a second instance is needed (a second GitHub App, a staging vs prod config) every reader that does `SELECT * ... LIMIT 1` becomes wrong.
@@ -87,7 +89,9 @@ RLS: off
 
 Findings:
 
-- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `github_app_installation` must scan `webhook_delivery` to check the constraint, and every join from the parent side is a sequential scan.
+- **Warning** Foreign key without index — PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `github_app_installation` must scan `webhook_delivery` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `webhook_delivery` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `github_app_installation` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
 - **Error** Asserted natural key is not enforced — `(delivery_guid)` is declared to identify a `webhook_delivery` row, but nothing enforces it. Retries, double-submits and webhook redeliveries create duplicates.
 - **Warning** No `tenant_id`; tenant only reachable via 2 join(s) — `webhook_delivery` belongs to a tenant only transitively (webhook_delivery → github_app_installation → tenant). Row-level security, per-tenant export/erasure, and per-tenant sharding all need that join. It works at 10 tenants and hurts at 1,000.
 

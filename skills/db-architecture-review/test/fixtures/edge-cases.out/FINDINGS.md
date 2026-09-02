@@ -85,7 +85,9 @@ With RLS on and no policy, non-owner roles see zero rows — usually discovered 
 
 ### F002 · attachment `org_id` — Foreign key without index
 
-PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `org` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan.
+PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `org` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `attachment` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `org` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
 
 **Fix:** Add an index on the FK column(s).
 
@@ -95,22 +97,26 @@ CREATE INDEX CONCURRENTLY idx_attachment_org_id ON attachment(org_id);
 
 ### F003 · attachment `widget_id` — Foreign key without index
 
-PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `widget` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan.
+PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `widget` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
 
-**Fix:** Add an index on the FK column(s).
+An index is not free. Every write to `attachment` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `widget` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
+
+**Fix:** Add a partial index, scoped to the rows that have a value. `widget_id` is nullable, so the NULL rows are not indexed at all and the write cost is a fraction of a full index, while the constraint check still uses it.
 
 ```sql
-CREATE INDEX CONCURRENTLY idx_attachment_widget_id ON attachment(widget_id);
+CREATE INDEX CONCURRENTLY idx_attachment_widget_id ON attachment(widget_id) WHERE widget_id IS NOT NULL;
 ```
 
 ### F004 · attachment `ticket_id` — Foreign key without index
 
-PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `ticket` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan.
+PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `ticket` must scan `attachment` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
 
-**Fix:** Add an index on the FK column(s).
+An index is not free. Every write to `attachment` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `ticket` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
+
+**Fix:** Add a partial index, scoped to the rows that have a value. `ticket_id` is nullable, so the NULL rows are not indexed at all and the write cost is a fraction of a full index, while the constraint check still uses it.
 
 ```sql
-CREATE INDEX CONCURRENTLY idx_attachment_ticket_id ON attachment(ticket_id);
+CREATE INDEX CONCURRENTLY idx_attachment_ticket_id ON attachment(ticket_id) WHERE ticket_id IS NOT NULL;
 ```
 
 ### F010 · profile `org_id` — Modelled 1:1 but intended 1:N
@@ -121,12 +127,14 @@ The narrative expects many `profile` per `org`, but the FK is UNIQUE, so the sec
 
 ### F005 · region `lead_id` — Foreign key without index
 
-PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `site` must scan `region` to check the constraint, and every join from the parent side is a sequential scan.
+PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `site` must scan `region` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
 
-**Fix:** Add an index on the FK column(s).
+An index is not free. Every write to `region` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `site` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
+
+**Fix:** Add a partial index, scoped to the rows that have a value. `lead_id` is nullable, so the NULL rows are not indexed at all and the write cost is a fraction of a full index, while the constraint check still uses it.
 
 ```sql
-CREATE INDEX CONCURRENTLY idx_region_lead_id ON region(lead_id);
+CREATE INDEX CONCURRENTLY idx_region_lead_id ON region(lead_id) WHERE lead_id IS NOT NULL;
 ```
 
 ### F026 · region — Foreign-key cycle
@@ -137,7 +145,9 @@ region → site → region. Rows must be inserted with a deferred constraint or 
 
 ### F006 · site `org_id, region` — Foreign key without index
 
-PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `region` must scan `site` to check the constraint, and every join from the parent side is a sequential scan.
+PostgreSQL does not index FK columns automatically. Every DELETE/UPDATE on `region` must scan `site` to check the constraint, and every join from the parent side is a sequential scan. The scan cost grows with the child table forever, so this gets worse on its own.
+
+An index is not free. Every write to `site` maintains it — insert, update and delete alike — and it takes disk. Weigh that against how often `region` rows are actually deleted or re-keyed — if the answer is never, the scan never happens and the index only costs.
 
 **Fix:** Add an index on the FK column(s).
 

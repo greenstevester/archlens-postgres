@@ -56,6 +56,7 @@ The file where human intent lives, and what the interesting checks compare again
 ## Decisions to keep
 
 - Precision over recall. `isJunction()` requires exactly two non-tenant, NOT NULL foreign keys and at most one payload column. It was tightened after firing on `approval_request`. Don't loosen a heuristic to catch one more real case if it adds a false positive on the sample.
+- A recommendation carries its cost. `fk-index` suggests a **partial** index when the foreign key is nullable, because nullable foreign keys are overwhelmingly audit columns (`created_by`, `invited_by`, `dismissed_by`) that are NULL for almost every row: the NULL rows are not indexed at all, so the write cost is a fraction of a full index while the constraint check still uses it. The detail also prices the index rather than only praising it, because a reader who already knows indexes cost writes stops trusting a reviewer that does not say so. The numbers in the source comment were measured on a 500k-row table — 200k inserts at 1006ms bare, 1119ms with a full index, 1046ms partial; the constraint check at 20.2ms bare, 0.159ms full, 0.040ms partial.
 - When domains exist, unclaimed tables are skipped by the tenant checks, so one root cause does not produce two errors.
 - Tenant-derivability on a table that looks like a junction is `info`, not `warn`.
 - Fix SQL is a template on purpose (literal dots in `ADD PRIMARY KEY (...)`, `CHECK (status IN (...))`). Copy-pasting an incomplete constraint is safer than copy-pasting a subtly wrong one.
