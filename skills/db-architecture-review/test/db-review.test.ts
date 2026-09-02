@@ -74,7 +74,7 @@ function goldenRun(name: string, schema: string, narratives: string, golden: str
 // index.html were added by this tool after the port; FINDINGS.md and the findings still match.
 goldenRun('sample schema (golden: examples/out)',
   'examples/sample-schema.sql', 'examples/narratives.json', 'examples/out',
-  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'erd.svg', 'domains/tenant.md', 'domains/auth.md',
+  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'schema-3d.html', 'erd.svg', 'domains/tenant.md', 'domains/auth.md',
     'domains/permission.md', 'domains/github.md', 'domains/approvals.md', 'domains/billing.md',
     'domains/tenant.svg', 'domains/auth.svg', 'domains/permission.svg', 'domains/github.svg',
     'domains/approvals.svg', 'domains/billing.svg'],
@@ -94,7 +94,7 @@ goldenRun('sample schema (golden: examples/out)',
 // which the printer renders as "…(name, kind) IS DISTINCT FROM …" (see the fallback cases below).
 goldenRun('edge-case fixture (golden: test/fixtures/edge-cases.out)',
   'test/fixtures/edge-cases.sql', 'test/fixtures/edge-cases.narratives.json', 'test/fixtures/edge-cases.out',
-  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'erd.svg', 'domains/core.md', 'domains/work.md',
+  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'schema-3d.html', 'erd.svg', 'domains/core.md', 'domains/work.md',
     'domains/core.svg', 'domains/work.svg'],
   /findings: 9 error, 8 warn, 11 info/, 1);
 
@@ -493,6 +493,14 @@ describe('informer output', () => {
     assert.match(html, /<ul class="rels">.*<code>widget\.org_id<\/code> → <a href="#t-org">org<\/a>\.id.*a widget is built by one organisation/s);
     assert.ok(!html.toLowerCase().includes('mermaid'));
     assert.equal((html.match(/<h3 class="rels-h">Relationships<\/h3>/g) ?? []).length, 2, "one heading per domain, above the list or the no-foreign-keys fallback");
+  });
+
+  it('links the 3D explorer from the Schema section and from every table', () => {
+    const html = file('index.html');
+    assert.match(html, /<section id="schema"><h2>Schema<\/h2><p class="muted"><a href="schema-3d.html">Open the 3D explorer<\/a>/);
+    assert.equal(count(html, /<a class="meta" href="schema-3d\.html#t=/g), 3);
+    assert.match(html, /<a class="meta" href="schema-3d\.html#t=widget">View in 3D<\/a>/);
+    assert.match(file('README.md'), /!\[Entity-relationship diagram\]\(erd\.svg\)\n\n\[Open the 3D explorer\]\(schema-3d\.html\)/);
   });
 });
 

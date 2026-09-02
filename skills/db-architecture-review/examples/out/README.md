@@ -30,3 +30,5 @@ Unclaimed tables: `legacy_import_staging`
 ## Diagram
 
 ![Entity-relationship diagram](erd.svg)
+
+[Open the 3D explorer](schema-3d.html) — a self-contained page: rotate, zoom, click any table or relationship.

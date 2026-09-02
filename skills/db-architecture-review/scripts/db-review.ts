@@ -1625,7 +1625,8 @@ export function writeMarkdown(outdir: string, tables: Map<string, Table>, narrat
   }
   const unclaimed = [...tables.values()].filter((t) => t.domain === null).map((t) => t.name);
   if (unclaimed.length) lines.push('', `Unclaimed tables: ${unclaimed.map((n) => `\`${n}\``).join(', ')}`);
-  lines.push('', '## Diagram', '', '![Entity-relationship diagram](erd.svg)');
+  lines.push('', '## Diagram', '', '![Entity-relationship diagram](erd.svg)', '',
+    '[Open the 3D explorer](schema-3d.html) — a self-contained page: rotate, zoom, click any table or relationship.');
   writeFileSync(path.join(outdir, 'erd.svg'), `${svgErd(tables, [...tables.keys()], true)}\n`);
   writeFileSync(path.join(outdir, 'README.md'), `${lines.join('\n')}\n`);
 
@@ -1815,7 +1816,7 @@ export function writeHtml(outdir: string, tables: Map<string, Table>, narratives
       + `${t.section ? ` · ${e(t.section)}` : ''} · line ${t.source_line}`;
     const desc = t.description.length ? `<p class="desc">${e(t.description.join(' '))}</p>` : '';
     return `<section class="table" id="t-${e(t.name)}" data-name="${e(t.name)}" data-cols="${e(t.columns.map((c) => c.name).join(' '))}">`
-      + `<header><h3>${e(t.name)}</h3><span class="meta">${meta}</span></header>${desc}${fnd}`
+      + `<header><h3>${e(t.name)}</h3><span class="meta">${meta}</span><a class="meta" href="schema-3d.html#t=${e(t.name)}">View in 3D</a></header>${desc}${fnd}`
       + '<table><thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>References</th><th>Notes</th></tr></thead>'
       + `<tbody>${rows.join('')}</tbody></table>`
       + `<div class="cols2"><div><h4>Indexes</h4><ul>${ix.join('') || '<li class=muted>none</li>'}</ul></div>`
@@ -1852,7 +1853,8 @@ export function writeHtml(outdir: string, tables: Map<string, Table>, narratives
   body.push(`<section id="findings"><h2>Findings</h2>${fitems.join('') || '<p class=muted>No findings.</p>'}</section>`);
 
   // The whole-schema diagram is present in every run, narratives or not.
-  body.push(`<section id="schema"><h2>Schema</h2><div class="erd-wrap">${svgErd(tables, [...tables.keys()])}</div></section>`);
+  body.push(`<section id="schema"><h2>Schema</h2><p class="muted"><a href="schema-3d.html">Open the 3D explorer</a> · rotate, zoom, click any table or relationship. Every foreign key is drawn.</p>`
+    + `<div class="erd-wrap">${svgErd(tables, [...tables.keys()])}</div></section>`);
 
   for (const d of domains) {
     const secs = (d.tables as string[]).map((n) => {
