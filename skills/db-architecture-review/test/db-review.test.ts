@@ -59,6 +59,18 @@ function goldenRun(name: string, schema: string, narratives: string, golden: str
       }
     });
 
+    // The second ratchet: no output file may load anything from the web. The docs must open
+    // from disk, an email or a USB stick; the 3D explorer carries its own copy of Three.js.
+    it('loads nothing from the web in any output file', () => {
+      const written = readdirSync(out, { recursive: true, withFileTypes: true })
+        .filter((d) => d.isFile()).map((d) => path.join(d.parentPath, d.name));
+      for (const f of written) {
+        const text = readFileSync(f, 'utf8');
+        assert.doesNotMatch(text, /(src|href)="https?:/, `${f} loads from the web`);
+        assert.doesNotMatch(text, /importmap/, `${f} uses an import map`);
+      }
+    });
+
     for (const file of files) {
       it(`writes ${file} identical to ${golden}`, () => {
         assert.equal(stable(read(path.join(out, file))), stable(read(path.join(golden, file))));
@@ -1182,4 +1194,13 @@ describe('schema-3d.html', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+});
+
+describe('browser files', () => {
+  for (const f of ['scripts/schema-3d-layout.js', 'scripts/schema-3d-app.js']) {
+    it(`${f} parses`, () => {
+      const run = spawnSync(process.execPath, ['--check', f], { cwd: root, encoding: 'utf8' });
+      assert.equal(run.status, 0, run.stderr);
+    });
+  }
 });
