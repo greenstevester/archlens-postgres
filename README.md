@@ -161,7 +161,7 @@ claude --plugin-dir /path/to/db-architecture-reviewer/skills/db-architecture-rev
 cd skills/db-architecture-review && npm test && npm run typecheck
 ```
 
-The design history — what was tried, what was rejected, and why the tool is two halves with a JSON file in the middle — lives in the repo's git log and in `docs/specs/`.
+The design history — what was tried, what was rejected, and why the tool is two halves with a JSON file in the middle — lives in the repo's git log and in `docs/specs/`. What changed in each release is in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 
