@@ -12,6 +12,7 @@ import {
   parseSchema, relationships, schema3dModel, svgErd, threeDir, writeHtml, writeMarkdown,
   type Finding, type Schema3dModel, type Table,
 } from '../scripts/db-review.ts';
+import { CARD, ISLAND_GAP, depths, layout } from '../scripts/schema-3d-layout.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // Paths stay relative to the skill folder because the schema path is echoed into schema.json.
@@ -1017,5 +1018,90 @@ describe('schema3dModel', () => {
     const depth = dependencyDepths(edge);
     assert.equal(depth.get('site'), 1);
     assert.equal(depth.get('region'), 2);
+  });
+});
+
+describe('schema-3d layout', () => {
+  let model: Schema3dModel;
+  let bare: Schema3dModel;
+  before(async () => {
+    const { tables } = await parseSchema(read('examples/sample-schema.sql'), 'examples/sample-schema.sql');
+    const narratives = json('examples/narratives.json');
+    model = schema3dModel(tables, narratives, new Reviewer(tables, narratives).run(), 'x.sql');
+    const { tables: t2 } = await parseSchema(read('examples/sample-schema.sql'), 'examples/sample-schema.sql');
+    bare = schema3dModel(t2, {}, [], 'x.sql');
+  });
+  type Island = ReturnType<typeof layout>['islands'][number];
+  const overlap = (a: Island, b: Island): boolean =>
+    Math.abs(a.cx - b.cx) < (a.w + b.w) / 2 + ISLAND_GAP && Math.abs(a.cz - b.cz) < (a.d + b.d) / 2 + ISLAND_GAP;
+
+  it("puts the hub's domain at the origin and the rest on a ring", () => {
+    const L = layout(model);
+    const centre = L.islands.find((i) => i.cx === 0 && i.cz === 0)!;
+    assert.equal(centre.key, 'tenant');
+    assert.ok(L.radius > 0);
+    for (const i of L.islands) if (i !== centre) assert.ok(Math.abs(Math.hypot(i.cx, i.cz) - L.radius) < 1e-6, i.key);
+  });
+
+  it('sorts parents before children inside an island, then by name', () => {
+    const L = layout(model);
+    const depth = depths(model);
+    for (const i of L.islands) {
+      for (let k = 1; k < i.tables.length; k += 1) {
+        const a = i.tables[k - 1], b = i.tables[k];
+        assert.ok(depth.get(a)! < depth.get(b)! || (depth.get(a) === depth.get(b) && a < b), `${i.key}: ${a} before ${b}`);
+      }
+    }
+  });
+
+  it('never lets two islands overlap, on the sample and on a crowded synthetic schema', () => {
+    const check = (m: Schema3dModel): void => {
+      const L = layout(m);
+      for (const a of L.islands) for (const b of L.islands) if (a !== b) assert.ok(!overlap(a, b), `${a.key} overlaps ${b.key}`);
+    };
+    check(model);
+    const sizes = [3, 20, 7, 14, 1, 30, 9, 12, 5, 25, 2, 18];
+    const domains = sizes.map((_, i) => ({ key: `d${i}`, title: `D${i}`, blurb: '', color: '#000000' }));
+    const tables = sizes.flatMap((n, i) => Array.from({ length: n }, (_, k) => ({
+      name: `d${i}_t${k}`, domain: `d${i}`, description: '', source_line: 1, columns: [], findings: [],
+    })));
+    const fks = tables.filter((t) => t.name !== 'd0_t0').map((t) => ({
+      child: t.name, columns: ['d0_t0_id'], parent: 'd0_t0', ref_columns: ['id'], name: null, cardinality: '1:N',
+      nullable: false, unique: false, indexed: true, on_delete: 'NO ACTION', why: null, words: 'w', findings: [],
+    }));
+    check({ title: 'x', source: 'x', domains, tables, fks, hubs: ['d0_t0'] });
+  });
+
+  it('places cards on a grid spaced for the column card, and gives the same answer twice', () => {
+    const L = layout(model);
+    assert.equal(JSON.stringify(L), JSON.stringify(layout(model)));
+    const names = Object.keys(L.pos);
+    assert.equal(names.length, model.tables.length);
+    for (const a of names) for (const b of names) {
+      if (a < b) {
+        const dx = Math.abs(L.pos[a].x - L.pos[b].x), dz = Math.abs(L.pos[a].z - L.pos[b].z);
+        assert.ok(dx >= CARD.stepX - 1e-6 || dz >= CARD.stepZ - 1e-6, `${a} and ${b} too close`);
+      }
+    }
+  });
+
+  it('makes one arc per foreign key whose ends both exist, low inside an island and lifted across', () => {
+    const L = layout(model);
+    assert.equal(L.arcs.length, model.fks.length);
+    for (const a of L.arcs) {
+      const fk = model.fks[a.i];
+      const inner = model.tables.find((t) => t.name === fk.child)!.domain === model.tables.find((t) => t.name === fk.parent)!.domain;
+      if (fk.child === fk.parent) assert.equal(a.kind, 'self');
+      else assert.equal(a.kind, inner ? 'inner' : 'cross');
+      if (a.kind === 'cross') assert.ok(a.lift > 3);
+      if (a.kind === 'inner') assert.equal(a.lift, 1.2);
+    }
+  });
+
+  it('with no narratives lays out one island per dependency depth', () => {
+    const L = layout(bare);
+    assert.ok(L.islands.length > 1);
+    assert.ok(L.islands.every((i) => i.key.startsWith('depth-')));
+    assert.equal(L.islands.find((i) => i.cx === 0 && i.cz === 0)!.key, 'depth-1', 'tenant, the hub, sits at depth 1');
   });
 });
