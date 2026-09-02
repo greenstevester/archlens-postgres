@@ -51,7 +51,43 @@ table and at the end of a column line become descriptions.
   `singleton_tables`, `cardinality[]` (`{parent, child, expect: "1:1"|"1:N", why, columns}` —
   `expect` and `why` are optional; `why` is printed beside the relationship in the docs;
   `columns` names which foreign key the entry means and is needed when a table has two
-  foreign keys to the same parent), `natural_keys[]`, `exclusive_arcs[]`.
+  foreign keys to the same parent), `natural_keys[]`, `exclusive_arcs[]`,
+  `accepted[]` (`{check, table, columns, why}` — a finding reviewed and judged wrong
+  for this schema; see below).
+
+### Dismissing a finding you have checked
+
+Some findings are wrong for a particular schema, and a checker cannot know it. A
+`CHECK` on a column holding Apple's webhook vocabulary would reject the next value
+Apple invents; a partial unique index on a soft-delete column is wrong when the
+soft delete is meant to be reversible. Record the judgement so it stops being
+re-litigated:
+
+```json
+"accepted": [
+  {
+    "check": "undocumented-enum",
+    "table": "subscription_events",
+    "columns": ["event_type"],
+    "why": "Apple owns this vocabulary and adds to it. A CHECK would fail the webhook insert on any type Apple invents, dropping a real purchase event."
+  }
+]
+```
+
+An entry is matched on `check`, `table` and `columns` — never on the finding id,
+which is renumbered whenever a check moves. Omit `columns` for a finding about the
+whole table (`orphan-table`, `wide-table`); a columns-less entry never matches a
+column finding, so it cannot silently swallow the next one that appears.
+
+Dismissed findings are **printed, not hidden** — FINDINGS.md gets a "Reviewed and
+dismissed" section carrying each `why`, and `schema.json` gets a `dismissed` array.
+They do not count toward the severity totals and do not trip `--fail-on`.
+
+Two ways an entry is refused, both reported as an `accepted-entry` warning rather
+than applied quietly: an entry with no `why` (the reasoning is the whole value of
+the record), and an entry that matches no finding, which means either the problem
+was fixed or something was renamed and the entry is now dismissing nothing while
+looking like it does.
 
 The narratives are optional (`--narratives` omitted → docs + physical checks
 only), but the interesting findings — wrong cardinality, unenforced natural
@@ -84,6 +120,7 @@ keys, tenant gaps — need a claim to check against.
 | undocumented-relationship | info | foreign key with no `why` in narratives.json (only with `require_relationship_notes`) |
 | blast-radius | info | hub tables (≥5 dependents) |
 | wide-table | info | ≥30 columns |
+| accepted-entry | warn | an `accepted[]` entry with no `why`, or matching no finding |
 
 Every finding has `detail` (what is allowed and why it hurts), `suggestion`,
 and usually `fix_sql`.

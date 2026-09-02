@@ -107,6 +107,9 @@ export interface Finding {
   detail: string;
   suggestion: string;
   fix_sql: string;
+  /** Set only on a dismissed finding: why the author judged it wrong. Optional and
+   *  last, so an ordinary finding serialises exactly as it did before. */
+  accepted_why?: string;
 }
 
 export interface Extras {
@@ -656,6 +659,10 @@ export class Reviewer {
   private readonly n: Narratives;
   private readonly a: Narratives;
   private readonly findings: Finding[] = [];
+  /** Findings an `assertions.accepted[]` entry dismissed. Kept rather than discarded:
+   *  the docs print them under their reason, so a reader sees what was considered and
+   *  rejected instead of wondering whether it was ever looked at. */
+  readonly dismissed: Finding[] = [];
   private seq = 0;
   private readonly domainOf = new Map<string, Narratives>();
 
@@ -706,12 +713,80 @@ export class Reviewer {
       this.chkWideTables]) {
       fn.call(this);
     }
+    this.applyAccepted();
     this.findings.sort((x, y) => {
       if (SEV_RANK[x.severity] !== SEV_RANK[y.severity]) return SEV_RANK[x.severity] - SEV_RANK[y.severity];
       if (x.table !== y.table) return x.table < y.table ? -1 : 1;
       return x.id < y.id ? -1 : x.id > y.id ? 1 : 0;
     });
     return this.findings;
+  }
+
+  /** Move every finding an `accepted[]` entry dismisses out of the findings list, and
+   *  report the entries that dismissed nothing.
+   *
+   *  Runs after the checks rather than as one of them, because it can only judge an
+   *  entry once every finding exists. An entry names `check`, `table` and — for a
+   *  finding about columns — `columns`; finding ids are renumbered whenever a check
+   *  moves in the list above, so an id would be the one key guaranteed to rot.
+   *
+   *  The two ways an entry is refused are both reported, never silent, because a
+   *  dismissal nobody can see is worse than the warning it hides. An entry with no
+   *  `why` does not dismiss at all: the reason is the entire value of the record. */
+  private applyAccepted(): void {
+    const entries = (this.a.accepted ?? []) as Narratives[];
+    if (!entries.length) return;
+
+    const matched = new Set<number>();
+    const kept: Finding[] = [];
+
+    for (const f of this.findings) {
+      let why = '';
+      entries.forEach((e, i) => {
+        if (why) return;
+        if (e.check !== f.check || e.table !== f.table) return;
+        const cols = (e.columns ?? null) as string[] | null;
+        // No columns means a table-level finding only. Letting it stand for "every
+        // finding of this check on this table" would quietly dismiss the next one
+        // that appears, which is the failure this whole feature exists to prevent.
+        if (cols === null ? f.columns.length !== 0 : !sameSet(cols, f.columns)) return;
+        matched.add(i);
+        if (typeof e.why === 'string' && e.why.trim()) why = e.why as string;
+      });
+      if (why) {
+        this.dismissed.push({ ...f, accepted_why: why });
+        // The id has to leave the table too. Both markdown and HTML render a table's
+        // findings by looking each id up in the findings list, so an id left behind
+        // dereferences to undefined and takes the whole run down.
+        const owner = this.t.get(f.table);
+        if (owner) owner.findings = owner.findings.filter((id) => id !== f.id);
+      } else {
+        kept.push(f);
+      }
+    }
+
+    this.findings.length = 0;
+    this.findings.push(...kept);
+
+    entries.forEach((e, i) => {
+      const where = `\`${String(e.check)}\` on \`${String(e.table)}\``
+        + (e.columns ? ` (${(e.columns as string[]).join(', ')})` : '');
+      if (!(typeof e.why === 'string' && (e.why as string).trim())) {
+        this.add('accepted-entry', 'warn', String(e.table ?? ''), (e.columns ?? []) as string[],
+          'Accepted entry has no reason',
+          `The \`accepted\` entry for ${where} carries no \`why\`, so the finding is still `
+          + 'reported. A dismissal without its reasoning cannot be reviewed by the next '
+          + 'person, and is indistinguishable from someone silencing a real problem.',
+          'Add a `why` saying what makes the finding wrong here.');
+      } else if (!matched.has(i)) {
+        this.add('accepted-entry', 'warn', String(e.table ?? ''), (e.columns ?? []) as string[],
+          'Accepted entry matches no finding',
+          `The \`accepted\` entry for ${where} no longer matches any finding. Either the `
+          + 'problem was fixed and the entry is dead, or a check, table or column was '
+          + 'renamed and the entry is now dismissing nothing while looking like it does.',
+          'Remove the entry, or correct its `check`, `table` and `columns` to match.');
+      }
+    });
   }
 
   // -- the checks ------------------------------------------------------
@@ -1189,7 +1264,7 @@ function localToday(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export function modelToJson(tables: Map<string, Table>, extras: Extras, narratives: Narratives, findings: Finding[], source: string): Record<string, any> {
+export function modelToJson(tables: Map<string, Table>, extras: Extras, narratives: Narratives, findings: Finding[], source: string, dismissed: Finding[] = []): Record<string, any> {
   const all = [...tables.values()];
   const count = (sev: Severity): number => findings.filter((f) => f.severity === sev).length;
   return {
@@ -1209,6 +1284,9 @@ export function modelToJson(tables: Map<string, Table>, extras: Extras, narrativ
     extras,
     tables: Object.fromEntries(tables),
     findings,
+    // Omitted entirely when nothing was dismissed, so a schema with no `accepted`
+    // entries serialises exactly as it did before this field existed.
+    ...(dismissed.length ? { dismissed } : {}),
   };
 }
 
@@ -1494,7 +1572,7 @@ export function svgErd(tables: Map<string, Table>, names: string[], standalone =
     + `role="img" aria-label="${e(title)}"><title>${e(title)}</title>${own}${out.join('')}</svg>`;
 }
 
-export function writeMarkdown(outdir: string, tables: Map<string, Table>, narratives: Narratives, findings: Finding[], stats: Stats): void {
+export function writeMarkdown(outdir: string, tables: Map<string, Table>, narratives: Narratives, findings: Finding[], stats: Stats, dismissed: Finding[] = []): void {
   const domains = (narratives.domains ?? []) as Narratives[];
   mkdirSync(path.join(outdir, 'domains'), { recursive: true });
   // A domain removed from narratives.json must take its page and diagram with it, or a stale
@@ -1586,6 +1664,17 @@ export function writeMarkdown(outdir: string, tables: Map<string, Table>, narrat
       fl.push(`### ${f.id} · ${f.table}${cols} — ${f.title}`, '', f.detail, '');
       if (f.suggestion) fl.push(`**Fix:** ${f.suggestion}`, '');
       if (f.fix_sql) fl.push('```sql', f.fix_sql, '```', '');
+    }
+  }
+  if (dismissed.length) {
+    fl.push(`## Reviewed and dismissed (${dismissed.length})`, '',
+      'Findings an `assertions.accepted[]` entry judged wrong for this schema. They are '
+      + 'printed rather than hidden so the judgement can be checked, and an entry that stops '
+      + 'matching any finding becomes a warning of its own.', '');
+    for (const f of dismissed) {
+      const cols = f.columns.length ? ` \`${f.columns.join(', ')}\`` : '';
+      fl.push(`### ${f.table}${cols} — ${f.title}`, '', `**Dismissed:** ${f.accepted_why}`, '',
+        `<sub>${f.check} · would otherwise be ${SEV_LABEL[f.severity].toLowerCase()}</sub>`, '');
     }
   }
   writeFileSync(path.join(outdir, 'FINDINGS.md'), `${fl.join('\n')}\n`);
@@ -1859,19 +1948,22 @@ export async function main(argv: string[]): Promise<number> {
     }
     throw err;
   }
-  const findings = new Reviewer(tables, narratives).run();
-  const doc = modelToJson(tables, extras, narratives, findings, schemaPath);
+  const reviewer = new Reviewer(tables, narratives);
+  const findings = reviewer.run();
+  const { dismissed } = reviewer;
+  const doc = modelToJson(tables, extras, narratives, findings, schemaPath, dismissed);
 
   mkdirSync(outdir, { recursive: true });
   writeFileSync(path.join(outdir, 'schema.json'), JSON.stringify(doc, null, 2));
-  writeMarkdown(outdir, tables, narratives, findings, doc.stats);
+  writeMarkdown(outdir, tables, narratives, findings, doc.stats, dismissed);
   writeHtml(outdir, tables, narratives, findings, doc.stats, schemaPath);
 
   const s = doc.stats.findings as Record<Severity, number>;
   if (!values.quiet) {
     const out: string[] = [
       `${tables.size} tables, ${doc.stats.foreign_keys} FKs, ${(narratives.domains ?? []).length} domains → ${outdir}/`,
-      `findings: ${s.error} error, ${s.warn} warn, ${s.info} info`,
+      `findings: ${s.error} error, ${s.warn} warn, ${s.info} info`
+      + (dismissed.length ? `, ${dismissed.length} dismissed` : ''),
     ];
     for (const f of findings) {
       if (f.severity !== 'info') {

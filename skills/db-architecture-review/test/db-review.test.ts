@@ -7,7 +7,8 @@ import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
-  Reviewer, describeRelationship, escapeHtml, parseSchema, relationships, svgErd, writeHtml, writeMarkdown,
+  Reviewer, describeRelationship, escapeHtml, modelToJson, parseSchema, relationships, svgErd,
+  writeHtml, writeMarkdown,
   type Finding, type Table,
 } from '../scripts/db-review.ts';
 
@@ -710,5 +711,155 @@ describe('svgErd label collisions', () => {
         x_id UUID REFERENCES p_one(id),
         the_very_long_reference_identifier_column UUID REFERENCES p_two(id)
       );`));
+  });
+});
+
+// --- accepted findings ------------------------------------------------------
+// A finding that has been reviewed and judged wrong should stop being a warning,
+// and the reason should survive in the docs. Finding ids are renumbered whenever
+// a check moves, so an entry is matched on check + table + columns instead.
+
+describe('accepted findings', () => {
+  const ddl = `
+    CREATE TABLE parent (id UUID PRIMARY KEY);
+    CREATE TABLE child (
+      id UUID PRIMARY KEY,
+      parent_id UUID NOT NULL REFERENCES parent(id),
+      other_id UUID NOT NULL REFERENCES parent(id),
+      status TEXT NOT NULL
+    );
+    CREATE TABLE lonely (id UUID PRIMARY KEY, note TEXT);`;
+  let tables: Map<string, Table>;
+  before(async () => {
+    ({ tables } = await parseSchema(ddl, 'inline'));
+  });
+
+  const accept = (...accepted: Record<string, any>[]): Reviewer =>
+    new Reviewer(tables, { assertions: { accepted } });
+
+  it('removes an accepted finding from the findings list', () => {
+    const r = accept({
+      check: 'undocumented-enum', table: 'child', columns: ['status'],
+      why: 'Apple owns this vocabulary; a CHECK would fail the webhook on a new type',
+    });
+    const kept = r.run();
+    assert.equal(kept.filter((f) => f.check === 'undocumented-enum').length, 0);
+  });
+
+  it('keeps the dismissed finding, with its reason, for the docs', () => {
+    const r = accept({
+      check: 'undocumented-enum', table: 'child', columns: ['status'],
+      why: 'Apple owns this vocabulary',
+    });
+    r.run();
+    assert.equal(r.dismissed.length, 1);
+    assert.equal(r.dismissed[0].check, 'undocumented-enum');
+    assert.equal(r.dismissed[0].accepted_why, 'Apple owns this vocabulary');
+  });
+
+  it('matches one foreign key only, not every finding of that check on the table', () => {
+    const r = accept({
+      check: 'fk-index', table: 'child', columns: ['parent_id'], why: 'parent is never deleted',
+    });
+    const left = r.run().filter((f) => f.check === 'fk-index').map((f) => f.columns);
+    assert.deepEqual(left, [['other_id']]);
+  });
+
+  it('applies a columns-less entry to a table-level finding', () => {
+    const r = accept({ check: 'orphan-table', table: 'lonely', why: 'append-only log, by design' });
+    assert.equal(r.run().filter((f) => f.check === 'orphan-table').length, 0);
+    assert.equal(r.dismissed.length, 1);
+  });
+
+  it('does not let a columns-less entry swallow column findings', () => {
+    const r = accept({ check: 'fk-index', table: 'child', why: 'too broad to be meant' });
+    assert.equal(r.run().filter((f) => f.check === 'fk-index').length, 2);
+  });
+
+  it('warns when an accepted entry matches nothing, so dismissals cannot rot', () => {
+    const r = accept({
+      check: 'fk-index', table: 'child', columns: ['parent_id'], why: 'fine',
+    }, {
+      check: 'fk-index', table: 'child', columns: ['gone_id'], why: 'this column no longer exists',
+    });
+    const stale = r.run().filter((f) => f.check === 'accepted-entry');
+    assert.equal(stale.length, 1);
+    assert.deepEqual(stale[0].columns, ['gone_id']);
+    assert.match(stale[0].detail, /no longer matches/);
+  });
+
+  it('requires a why, so a dismissal always carries its reasoning', () => {
+    const found = accept({ check: 'fk-index', table: 'child', columns: ['parent_id'] }).run();
+    const bad = found.filter((f) => f.check === 'accepted-entry');
+    assert.equal(bad.length, 1);
+    assert.match(bad[0].detail, /why/);
+    // The finding it names is NOT dismissed while the entry is incomplete.
+    assert.equal(found.filter((f) => f.check === 'fk-index' && f.columns[0] === 'parent_id').length, 1);
+  });
+
+  it('leaves everything alone when there are no accepted entries', () => {
+    const r = new Reviewer(tables, { assertions: {} });
+    const n = r.run().length;
+    assert.ok(n > 0);
+    assert.equal(r.dismissed.length, 0);
+    assert.equal(r.run().filter((f) => f.check === 'accepted-entry').length, 0);
+  });
+});
+
+describe('dismissed findings in the output', () => {
+  const ddl = `
+    CREATE TABLE parent (id UUID PRIMARY KEY);
+    CREATE TABLE child (id UUID PRIMARY KEY, parent_id UUID NOT NULL REFERENCES parent(id));`;
+  const narratives = {
+    domains: [{ key: 'core', title: 'Core', blurb: 'Everything.', tables: ['parent', 'child'] }],
+    assertions: {
+      accepted: [{
+        check: 'fk-index', table: 'child', columns: ['parent_id'],
+        why: 'parent rows are never deleted, so the index would cost writes and save nothing',
+      }],
+    },
+  };
+  let out = '';
+  let tables: Map<string, Table>;
+  let findings: Finding[];
+  let dismissed: Finding[];
+
+  before(async () => {
+    ({ tables } = await parseSchema(ddl, 'inline'));
+    const r = new Reviewer(tables, narratives);
+    findings = r.run();
+    dismissed = r.dismissed;
+    out = mkdtempSync(path.join(tmpdir(), 'dbrev-dismissed-'));
+    writeMarkdown(out, tables, narratives, findings, { tables: 2, columns: 3, foreign_keys: 1, domains: 1, findings: { error: 0, warn: 0, info: 0 } } as any, dismissed);
+  });
+  after(() => rmSync(out, { recursive: true, force: true }));
+
+  it('prints a Reviewed and dismissed section carrying the reason', () => {
+    const md = readFileSync(path.join(out, 'FINDINGS.md'), 'utf8');
+    assert.match(md, /## Reviewed and dismissed \(1\)/);
+    assert.match(md, /parent rows are never deleted/);
+    assert.match(md, /fk-index · would otherwise be warning/);
+  });
+
+  it('writes no such section when nothing was dismissed', () => {
+    const bare = mkdtempSync(path.join(tmpdir(), 'dbrev-nodismiss-'));
+    const r = new Reviewer(tables, { domains: narratives.domains, assertions: {} });
+    writeMarkdown(bare, tables, { domains: narratives.domains }, r.run(), { tables: 2, columns: 3, foreign_keys: 1, domains: 1, findings: { error: 0, warn: 0, info: 0 } } as any);
+    assert.doesNotMatch(readFileSync(path.join(bare, 'FINDINGS.md'), 'utf8'), /Reviewed and dismissed/);
+    rmSync(bare, { recursive: true, force: true });
+  });
+
+  it('records dismissals in schema.json, and omits the key when there are none', () => {
+    const withOne = modelToJson(tables, { extensions: [], enums: {}, unparsed: {} } as any, narratives, findings, 'inline', dismissed);
+    assert.equal(withOne.dismissed.length, 1);
+    assert.equal(withOne.dismissed[0].accepted_why, narratives.assertions.accepted[0].why);
+    const without = modelToJson(tables, { extensions: [], enums: {}, unparsed: {} } as any, narratives, findings, 'inline');
+    assert.ok(!('dismissed' in without));
+  });
+
+  it('keeps a dismissed finding out of the severity counts that drive --fail-on', () => {
+    const doc = modelToJson(tables, { extensions: [], enums: {}, unparsed: {} } as any, narratives, findings, 'inline', dismissed);
+    assert.equal((doc.stats.findings as any).warn, findings.filter((f) => f.severity === 'warn').length);
+    assert.ok(!findings.some((f) => f.check === 'fk-index'));
   });
 });
