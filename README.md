@@ -9,6 +9,10 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Node 24+](https://img.shields.io/badge/Node-24%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 
+[![Seven real schemas, rotatable: the postgres-schema-gallery](https://greensill.net/postgres-schema-gallery/banner.gif)](https://greensill.net/postgres-schema-gallery/)
+
+*See it on real schemas: [postgres-schema-gallery](https://greensill.net/postgres-schema-gallery/) runs this reviewer over Temporal, Miniflux, Listmonk, Matrix Synapse, Sourcegraph, Cal.com and GitLab (1,429 tables), each with a 3D explorer you can rotate.*
+
 > **Document your PostgreSQL schema and review its design in one run.** Every finding points at a table you can click through to, and the docs show each flaw next to the table it belongs to.
 
 ## Why review a schema?
