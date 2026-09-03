@@ -1,6 +1,6 @@
 {
   "name": "db-architecture-review",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "private": true,
   "description": "Document a PostgreSQL schema and review its design in one run.",
   "type": "module",

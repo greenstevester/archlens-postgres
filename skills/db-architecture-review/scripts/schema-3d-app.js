@@ -36,6 +36,9 @@
   controls.maxPolarAngle = Math.PI * 0.49;
   controls.minDistance = 4;
   controls.maxDistance = extent * 4;
+  // Scroll zooms toward what is under the pointer and drags the orbit centre along, so reaching
+  // a far corner of a big schema is a couple of wheel turns, not zoom-then-pan-then-zoom.
+  controls.zoomToCursor = true;
   controls.autoRotate = !REDUCED;
   controls.autoRotateSpeed = 0.4;
   scene.add(new THREE.HemisphereLight('#dfe7f5', '#1a1f2a', 1.1));
@@ -344,6 +347,7 @@
     if (ev.key === 'Escape') { clear(); goHome(); q.blur(); }
     if (ev.key === '/' && document.activeElement !== q) { ev.preventDefault(); q.focus(); }
   });
+  $('recenter').onclick = () => goHome();
   $('reset').onclick = () => { clear(); goHome(); };
   document.querySelectorAll('#hubseg button').forEach((b) => {
     b.onclick = () => {

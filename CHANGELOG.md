@@ -9,6 +9,27 @@ The version in `.claude-plugin/marketplace.json`, `.claude-plugin/plugin.json`,
 `skills/db-architecture-review/package.json` always match the tag. Users only receive an
 update when the marketplace entry's version changes.
 
+## [1.7.1](https://github.com/greenstevester/db-architecture-reviewer/releases/tag/v1.7.1) — 2026-09-03
+
+Past forty tables the whole-schema diagram at the top of `index.html` was a strip of unreadable
+boxes. It is now a map of the 3D layout that opens the explorer when clicked, and the explorer
+has a way back.
+
+**Changed**
+
+- The Schema section of `index.html` shows `svgSchemaMap()`: the explorer's island layout seen
+  from above, one block per table, one curve per foreign key in the child's domain colour, wrapped
+  in a link to `schema-3d.html`. The whole-schema flat diagram is gone from the page; each domain
+  section keeps its own, and `erd.svg` is still written.
+- `README.md`'s Diagram section leads with the same map as a new file, `schema-map.svg`, linked
+  to the explorer, and names `erd.svg` in a sentence instead of embedding it.
+- `schema-3d.html` starts its controls with "← Docs & findings", back to `index.html`; scroll
+  now zooms toward what is under the pointer, carrying the orbit centre with it; and a Recenter
+  button frames the whole schema again without clearing the selection (Reset view still does both).
+
+No finding appears or disappears — counts and severities are identical on both fixtures. One test
+changed with the behaviour: the README diagram test now expects the map, not the flat diagram.
+
 ## [1.7.0](https://github.com/greenstevester/db-architecture-reviewer/releases/tag/v1.7.0) — 2026-09-03
 
 A schema past forty tables was unreadable in the flat diagram. Every run now also writes

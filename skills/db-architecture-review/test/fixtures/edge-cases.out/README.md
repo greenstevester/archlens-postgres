@@ -19,6 +19,6 @@ See [FINDINGS.md](FINDINGS.md) for the design review.
 
 ## Diagram
 
-![Entity-relationship diagram](erd.svg)
+[![Schema map: click to open the 3D explorer](schema-map.svg)](schema-3d.html)
 
-[Open the 3D explorer](schema-3d.html) — a self-contained page: rotate, zoom, click any table or relationship.
+The map is the 3D explorer seen from above: one island per domain, one curve per foreign key. Click it to open [schema-3d.html](schema-3d.html) and rotate, zoom, click any table or relationship. The flat entity-relationship diagram is [erd.svg](erd.svg).
