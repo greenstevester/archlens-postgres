@@ -31,6 +31,8 @@ import type {
   A_Const, A_Expr, AlterTableStmt, ColumnRef, Constraint, Node, ParseResult, TypeName,
 } from 'libpg-query';
 
+import { CARD, layout } from './schema-3d-layout.js';
+
 // ----------------------------------------------------------------------------
 // Model
 // ----------------------------------------------------------------------------
@@ -1625,8 +1627,12 @@ export function writeMarkdown(outdir: string, tables: Map<string, Table>, narrat
   }
   const unclaimed = [...tables.values()].filter((t) => t.domain === null).map((t) => t.name);
   if (unclaimed.length) lines.push('', `Unclaimed tables: ${unclaimed.map((n) => `\`${n}\``).join(', ')}`);
-  lines.push('', '## Diagram', '', '![Entity-relationship diagram](erd.svg)', '',
-    '[Open the 3D explorer](schema-3d.html) — a self-contained page: rotate, zoom, click any table or relationship.');
+  const map3d = schema3dModel(tables, narratives, findings, 'README.md');
+  lines.push('', '## Diagram', '', '[![Schema map: click to open the 3D explorer](schema-map.svg)](schema-3d.html)', '',
+    'The map is the 3D explorer seen from above: one island per domain, one curve per foreign key. Click it to open '
+    + '[schema-3d.html](schema-3d.html) and rotate, zoom, click any table or relationship. The flat entity-relationship '
+    + 'diagram is [erd.svg](erd.svg).');
+  writeFileSync(path.join(outdir, 'schema-map.svg'), `${svgSchemaMap(map3d, true)}\n`);
   writeFileSync(path.join(outdir, 'erd.svg'), `${svgErd(tables, [...tables.keys()], true)}\n`);
   writeFileSync(path.join(outdir, 'README.md'), `${lines.join('\n')}\n`);
 
@@ -1719,6 +1725,7 @@ const CSS = `
 .erd .ln,.erd .end path{fill:none;stroke:var(--ink);stroke-width:1.2}.erd .end circle{fill:var(--panel);stroke:var(--ink);stroke-width:1.2}
 .rels{list-style:none;padding:0;margin:8px 0 16px}.rels li{padding:6px 0;border-bottom:1px solid var(--rule)}.rels .why{font-style:italic}
 .rels-h{margin:18px 0 2px}
+.map-link{display:block;margin:10px 0 6px;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:#0e1116}.map-link svg{display:block;width:100%;height:auto}.map-link:hover{border-color:var(--acc)}
 *{box-sizing:border-box}body{margin:0;font:15px/1.5 Georgia,'Iowan Old Style','Palatino Linotype',serif;color:var(--ink);background:var(--bg);display:flex;align-items:flex-start;min-height:100vh}
 nav{flex:0 0 270px;position:sticky;top:0;height:100vh;overflow:auto;padding:22px 18px;border-right:1px solid var(--rule);background:var(--panel)}
 nav .brand{font-size:17px;font-weight:700;margin:0 0 2px}nav .sub{color:var(--mute);font-size:13px;margin:0 0 14px}
@@ -1853,8 +1860,14 @@ export function writeHtml(outdir: string, tables: Map<string, Table>, narratives
   body.push(`<section id="findings"><h2>Findings</h2>${fitems.join('') || '<p class=muted>No findings.</p>'}</section>`);
 
   // The whole-schema diagram is present in every run, narratives or not.
-  body.push(`<section id="schema"><h2>Schema</h2><p class="muted"><a href="schema-3d.html">Open the 3D explorer</a> · rotate, zoom, click any table or relationship. Every foreign key is drawn.</p>`
-    + `<div class="erd-wrap">${svgErd(tables, [...tables.keys()])}</div></section>`);
+  // The map is the 3D layout from above and the way into the explorer. The whole-schema flat
+  // diagram is not here: past a few dozen tables it is a strip of unreadable boxes, and each
+  // domain section below carries its own readable one. erd.svg still exists for the markdown.
+  const map3d = schema3dModel(tables, narratives, findings, source);
+  body.push('<section id="schema"><h2>Schema</h2>'
+    + `<a class="map-link" href="schema-3d.html" title="Open the 3D explorer">${svgSchemaMap(map3d)}</a>`
+    + `<p class="muted">${map3d.tables.length} tables · ${map3d.fks.length} foreign keys · ${map3d.domains.length} domains. `
+    + '<a href="schema-3d.html">Open the 3D explorer</a>: rotate, zoom, click any table or relationship.</p></section>');
 
   for (const d of domains) {
     const secs = (d.tables as string[]).map((n) => {
@@ -2075,6 +2088,66 @@ export function schema3dModel(tables: Map<string, Table>, narratives: Narratives
   };
 }
 
+// The standalone map file carries the explorer's dark ground, so it reads the same on GitHub.
+const MAP_BG = '#0e1116';
+
+/**
+ * The 3D layout seen from above, as SVG: one rounded box per island, one small block per table,
+ * one bowed curve per foreign key in the child's domain colour. It is the picture index.html and
+ * README.md link to the explorer with, drawn by the script itself, no browser needed. The bow is
+ * sideways because the 3D arc's lift is vertical and invisible from above.
+ */
+export function svgSchemaMap(model: Schema3dModel, standalone = false): string {
+  const e = escapeHtml;
+  const L = layout(model);
+  const margin = 6;
+  const xs = L.islands.flatMap((i) => [i.cx - i.w / 2, i.cx + i.w / 2]);
+  const zs = L.islands.flatMap((i) => [i.cz - i.d / 2, i.cz + i.d / 2]);
+  const minX = Math.min(0, ...xs) - margin;
+  const maxX = Math.max(0, ...xs) + margin;
+  const minZ = Math.min(0, ...zs) - margin;
+  const maxZ = Math.max(0, ...zs) + margin;
+  const W = 960;
+  const s = W / (maxX - minX);
+  const H = Math.max(120, Math.ceil((maxZ - minZ) * s));
+  const X = (x: number): string => ((x - minX) * s).toFixed(1);
+  const Y = (z: number): string => ((z - minZ) * s).toFixed(1);
+  const colourOf = new Map(model.domains.map((d) => [d.key, d.color]));
+  const domainOf = new Map(model.tables.map((t) => [t.name, t.domain]));
+  const fontSize = Math.max(7, Math.min(12, 1.6 * s)).toFixed(1);
+  const out: string[] = [];
+  for (const i of L.islands) {
+    out.push(`<g class="isl"><rect x="${X(i.cx - i.w / 2)}" y="${Y(i.cz - i.d / 2)}" width="${(i.w * s).toFixed(1)}" height="${(i.d * s).toFixed(1)}"`
+      + ` rx="${(1.2 * s).toFixed(1)}" fill="${i.color}" fill-opacity="0.12" stroke="${i.color}" stroke-opacity="0.5"/>`
+      + `<text x="${X(i.cx)}" y="${Y(i.cz - i.d / 2)}" dy="-3" text-anchor="middle" fill="${i.color}" font-size="${fontSize}">${e(i.title)}</text></g>`);
+    for (const n of i.tables) {
+      const p = L.pos[n];
+      out.push(`<rect class="tbl" x="${X(p.x - CARD.w / 2)}" y="${Y(p.z - CARD.d / 2)}" width="${(CARD.w * s).toFixed(1)}" height="${(CARD.d * s).toFixed(1)}" fill="${i.color}"><title>${e(n)}</title></rect>`);
+    }
+  }
+  for (const a of L.arcs) {
+    const fk = model.fks[a.i];
+    const c = L.pos[fk.child];
+    const p = L.pos[fk.parent];
+    const col = colourOf.get(domainOf.get(fk.child) ?? '') ?? '#7f8a99';
+    if (a.kind === 'self') {
+      out.push(`<circle class="fk" cx="${X(c.x + CARD.w / 2)}" cy="${Y(c.z)}" r="${(0.9 * s).toFixed(1)}" fill="none" stroke="${col}" stroke-opacity="0.6"/>`);
+      continue;
+    }
+    const dx = p.x - c.x;
+    const dz = p.z - c.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const bow = Math.min(8, 0.18 * len);
+    const mx = (c.x + p.x) / 2 - (dz / len) * bow;
+    const mz = (c.z + p.z) / 2 + (dx / len) * bow;
+    out.push(`<path class="fk" d="M${X(c.x)},${Y(c.z)} Q${X(mx)},${Y(mz)} ${X(p.x)},${Y(p.z)}" fill="none" stroke="${col}" stroke-opacity="${a.kind === 'inner' ? '0.7' : '0.45'}"/>`);
+  }
+  const title = `Schema map: ${model.tables.length} tables, ${model.fks.length} foreign keys, ${L.islands.length} domains. Click to open the 3D explorer.`;
+  const own = standalone ? `<rect width="${W}" height="${H}" fill="${MAP_BG}"/>` : '';
+  return `<svg class="map" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${e(title)}" font-family="system-ui, sans-serif">`
+    + `<title>${e(title)}</title>${own}${out.join('')}</svg>`;
+}
+
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 /** A module's `export` keywords removed, so it can be inlined as a classic script. */
@@ -2095,6 +2168,7 @@ export function writeSchema3d(outdir: string, model: Schema3dModel, three: strin
     + `<title>${e(model.title)} — 3D schema explorer</title><style>${asset('schema-3d.css')}</style></head><body>\n`
     + '<div id="scene" role="application" aria-label="3D schema explorer">'
     + '<div class="ov tl">'
+    + '<a class="plain back" href="index.html">← Docs &amp; findings</a>'
     + '<label class="sr" for="q">Find table or column</label>'
     + '<input id="q" type="search" placeholder="Find table or column… ( / )" autocomplete="off">'
     + '<div class="row"><span class="lbl">Hub edges</span>'
@@ -2103,7 +2177,8 @@ export function writeSchema3d(outdir: string, model: Schema3dModel, three: strin
     + '<button type="button" data-m="muted" aria-pressed="false">Muted</button>'
     + '<button type="button" data-m="hidden" aria-pressed="false">Hidden</button></span>'
     + '<span id="hubinfo" class="lbl"></span>'
-    + '<button type="button" id="reset" class="plain">Reset view (Esc)</button></div>'
+    + '<button type="button" id="recenter" class="plain" title="Frame the whole schema again, keeping the selection">Recenter</button>'
+    + '<button type="button" id="reset" class="plain" title="Clear the selection and frame the whole schema">Reset view (Esc)</button></div>'
     + '<div class="chips" id="chips" role="group" aria-label="Domains"></div></div>'
     + '<div class="ov help">drag rotate · right-drag pan · scroll zoom · click a table or a line · double-click flies there · Esc clears</div>'
     + '<div id="tip" role="tooltip"></div>'

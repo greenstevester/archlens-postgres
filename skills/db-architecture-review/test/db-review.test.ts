@@ -86,7 +86,7 @@ function goldenRun(name: string, schema: string, narratives: string, golden: str
 // index.html were added by this tool after the port; FINDINGS.md and the findings still match.
 goldenRun('sample schema (golden: examples/out)',
   'examples/sample-schema.sql', 'examples/narratives.json', 'examples/out',
-  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'schema-3d.html', 'erd.svg', 'domains/tenant.md', 'domains/auth.md',
+  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'schema-3d.html', 'schema-map.svg', 'erd.svg', 'domains/tenant.md', 'domains/auth.md',
     'domains/permission.md', 'domains/github.md', 'domains/approvals.md', 'domains/billing.md',
     'domains/tenant.svg', 'domains/auth.svg', 'domains/permission.svg', 'domains/github.svg',
     'domains/approvals.svg', 'domains/billing.svg'],
@@ -106,7 +106,7 @@ goldenRun('sample schema (golden: examples/out)',
 // which the printer renders as "…(name, kind) IS DISTINCT FROM …" (see the fallback cases below).
 goldenRun('edge-case fixture (golden: test/fixtures/edge-cases.out)',
   'test/fixtures/edge-cases.sql', 'test/fixtures/edge-cases.narratives.json', 'test/fixtures/edge-cases.out',
-  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'schema-3d.html', 'erd.svg', 'domains/core.md', 'domains/work.md',
+  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'schema-3d.html', 'schema-map.svg', 'erd.svg', 'domains/core.md', 'domains/work.md',
     'domains/core.svg', 'domains/work.svg'],
   /findings: 9 error, 8 warn, 11 info/, 1);
 
@@ -449,8 +449,10 @@ describe('informer output', () => {
   });
   after(() => rmSync(out, { recursive: true, force: true }));
 
-  it('writes a standalone erd.svg and links it from README.md as the Diagram section', () => {
-    assert.match(file('README.md'), /## Diagram\n\n!\[Entity-relationship diagram\]\(erd\.svg\)\n/);
+  it('writes schema-map.svg and erd.svg; README.md leads with the map linked to the explorer and names the flat diagram', () => {
+    assert.match(file('README.md'), /## Diagram\n\n\[!\[Schema map: click to open the 3D explorer\]\(schema-map\.svg\)\]\(schema-3d\.html\)\n/);
+    assert.match(file('README.md'), /\[erd\.svg\]\(erd\.svg\)/);
+    assert.match(file('schema-map.svg'), /^<svg class="map"/);
     assert.match(file('erd.svg'), /^<svg class="erd"/);
   });
 
@@ -469,25 +471,28 @@ describe('informer output', () => {
     assert.equal(svg, `${svgErd(tables, [...tables.keys()], true)}\n`);
   });
 
-  it('puts the whole-schema SVG section above the domain sections in index.html', () => {
+  it('puts the Schema section, with the map and no flat whole-schema diagram, above the domain sections in index.html', () => {
     const html = file('index.html');
     const schema = html.indexOf('<section id="schema">');
     assert.notEqual(schema, -1);
     assert.ok(schema < html.indexOf('<section class="domain"'));
-    assert.equal(count(html, /<svg class="erd"/g), 3);
+    assert.equal(count(html, /<svg class="map"/g), 1);
+    assert.equal(count(html, /<svg class="erd"/g), 2, 'one flat diagram per domain, none for the whole schema');
   });
 
-  it('bare run (no narratives): index.html still carries a whole-schema SVG with one box per table', async () => {
+  it('bare run (no narratives): index.html still carries the schema map with one block per table', async () => {
     const { tables: bare } = await parseSchema(ddl, 'inline');
     const dir = mkdtempSync(path.join(tmpdir(), 'db-review-bare-'));
     try {
       writeMarkdown(dir, bare, {}, [], stats);
       writeHtml(dir, bare, {}, [], stats, 'inline');
       const html = readFileSync(path.join(dir, 'index.html'), 'utf8');
-      assert.match(html, /<section id="schema">/);
-      assert.equal(count(html, /<svg class="erd"/g), 1);
-      assert.equal(count(html, /<g class="tbl"/g), 3);
+      assert.match(html, /<section id="schema"><h2>Schema<\/h2><a class="map-link" href="schema-3d.html"/);
+      assert.equal(count(html, /<svg class="map"/g), 1);
+      assert.equal(count(html, /<rect class="tbl"/g), 3);
+      assert.equal(count(html, /<svg class="erd"/g), 0, 'no domains, so no flat diagrams at all');
       assert.match(readFileSync(path.join(dir, 'erd.svg'), 'utf8'), /^<svg class="erd"/);
+      assert.match(readFileSync(path.join(dir, 'schema-map.svg'), 'utf8'), /^<svg class="map"/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -509,10 +514,21 @@ describe('informer output', () => {
 
   it('links the 3D explorer from the Schema section and from every table', () => {
     const html = file('index.html');
-    assert.match(html, /<section id="schema"><h2>Schema<\/h2><p class="muted"><a href="schema-3d.html">Open the 3D explorer<\/a>/);
+    assert.match(html, /<section id="schema"><h2>Schema<\/h2><a class="map-link" href="schema-3d.html" title="Open the 3D explorer"><svg class="map"/);
+    assert.ok(!html.includes('Flat entity-relationship diagram'), 'the whole-schema flat diagram is gone from index.html');
     assert.equal(count(html, /<a class="meta" href="schema-3d\.html#t=/g), 3);
     assert.match(html, /<a class="meta" href="schema-3d\.html#t=widget">View in 3D<\/a>/);
-    assert.match(file('README.md'), /!\[Entity-relationship diagram\]\(erd\.svg\)\n\n\[Open the 3D explorer\]\(schema-3d\.html\)/);
+  });
+
+  it('draws the schema map from the 3D layout: one box per island, one block per table, one curve per key', () => {
+    const svg = file('schema-map.svg');
+    const html = file('index.html');
+    assert.equal(count(svg, /<g class="isl">/g), 2);
+    assert.equal(count(svg, /<rect class="tbl"/g), 3);
+    assert.equal(count(svg, /class="fk"/g), 2);
+    assert.match(svg, /<rect width="960" height="\d+" fill="#0e1116"\/>/, 'the standalone file carries its own ground');
+    assert.ok(!svg.includes('var(--'));
+    assert.ok(!html.includes('fill="#0e1116"/>'), 'the inline copy in index.html has no ground rectangle');
   });
 });
 
@@ -1191,8 +1207,12 @@ describe('schema-3d.html', () => {
     assert.match(html, /"child":"note","columns":\["parent_id"\],"parent":"note"/);
   });
 
+  it('starts its controls with a way back to the docs', () => {
+    assert.match(html, /<div class="ov tl"><a class="plain back" href="index.html">← Docs &amp; findings<\/a>/);
+  });
+
   it('has the controls the app looks up by id, each with a name', () => {
-    for (const id of ['scene', 'q', 'hubseg', 'hubinfo', 'reset', 'chips', 'tip', 'panel', 'live', 'nowebgl']) {
+    for (const id of ['scene', 'q', 'hubseg', 'hubinfo', 'recenter', 'reset', 'chips', 'tip', 'panel', 'live', 'nowebgl']) {
       assert.match(html, new RegExp(` id="${id}"`), `#${id} missing`);
     }
     assert.match(html, /<label class="sr" for="q">/);
