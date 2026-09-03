@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="icon.png" alt="Database Architecture Review icon" width="128" height="128">
+  <a href="https://greensill.net/postgres-schema-gallery/"><img src="https://greensill.net/postgres-schema-gallery/banner.gif" alt="A real PostgreSQL schema turning in the 3D explorer: islands per domain, every foreign key as an arc" width="800"></a>
+</p>
+<p align="center">
+  <a href="https://greensill.net/postgres-schema-gallery/"><b>See it on real schemas: the postgres-schema-gallery</b></a><br>
+  <sub>Temporal, Miniflux, Listmonk, Matrix Synapse, Sourcegraph, Cal.com and GitLab (1,429 tables), each reviewed, each with a 3D explorer you can rotate.</sub>
 </p>
 
 # Database Architecture Review for Claude Code
