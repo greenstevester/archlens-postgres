@@ -5,12 +5,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
 import {
-  Reviewer, describeRelationship, escapeHtml, modelToJson, parseSchema, relationships, svgErd,
-  writeHtml, writeMarkdown,
-  type Finding, type Table,
+  Reviewer, bundleThree, dependencyDepths, describeRelationship, escapeHtml, hubTables, modelToJson,
+  parseSchema, relationships, schema3dModel, svgErd, threeDir, writeHtml, writeMarkdown, writeSchema3d,
+  type Finding, type Schema3dModel, type Table,
 } from '../scripts/db-review.ts';
+import { CARD, ISLAND_GAP, depths, layout } from '../scripts/schema-3d-layout.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // Paths stay relative to the skill folder because the schema path is echoed into schema.json.
@@ -57,6 +59,18 @@ function goldenRun(name: string, schema: string, narratives: string, golden: str
       }
     });
 
+    // The second ratchet: no output file may load anything from the web. The docs must open
+    // from disk, an email or a USB stick; the 3D explorer carries its own copy of Three.js.
+    it('loads nothing from the web in any output file', () => {
+      const written = readdirSync(out, { recursive: true, withFileTypes: true })
+        .filter((d) => d.isFile()).map((d) => path.join(d.parentPath, d.name));
+      for (const f of written) {
+        const text = readFileSync(f, 'utf8');
+        assert.doesNotMatch(text, /(src|href)="https?:/, `${f} loads from the web`);
+        assert.doesNotMatch(text, /importmap/, `${f} uses an import map`);
+      }
+    });
+
     for (const file of files) {
       it(`writes ${file} identical to ${golden}`, () => {
         assert.equal(stable(read(path.join(out, file))), stable(read(path.join(golden, file))));
@@ -72,7 +86,7 @@ function goldenRun(name: string, schema: string, narratives: string, golden: str
 // index.html were added by this tool after the port; FINDINGS.md and the findings still match.
 goldenRun('sample schema (golden: examples/out)',
   'examples/sample-schema.sql', 'examples/narratives.json', 'examples/out',
-  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'erd.svg', 'domains/tenant.md', 'domains/auth.md',
+  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'schema-3d.html', 'erd.svg', 'domains/tenant.md', 'domains/auth.md',
     'domains/permission.md', 'domains/github.md', 'domains/approvals.md', 'domains/billing.md',
     'domains/tenant.svg', 'domains/auth.svg', 'domains/permission.svg', 'domains/github.svg',
     'domains/approvals.svg', 'domains/billing.svg'],
@@ -92,7 +106,7 @@ goldenRun('sample schema (golden: examples/out)',
 // which the printer renders as "…(name, kind) IS DISTINCT FROM …" (see the fallback cases below).
 goldenRun('edge-case fixture (golden: test/fixtures/edge-cases.out)',
   'test/fixtures/edge-cases.sql', 'test/fixtures/edge-cases.narratives.json', 'test/fixtures/edge-cases.out',
-  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'erd.svg', 'domains/core.md', 'domains/work.md',
+  ['schema.json', 'README.md', 'FINDINGS.md', 'index.html', 'schema-3d.html', 'erd.svg', 'domains/core.md', 'domains/work.md',
     'domains/core.svg', 'domains/work.svg'],
   /findings: 9 error, 8 warn, 11 info/, 1);
 
@@ -491,6 +505,14 @@ describe('informer output', () => {
     assert.match(html, /<ul class="rels">.*<code>widget\.org_id<\/code> → <a href="#t-org">org<\/a>\.id.*a widget is built by one organisation/s);
     assert.ok(!html.toLowerCase().includes('mermaid'));
     assert.equal((html.match(/<h3 class="rels-h">Relationships<\/h3>/g) ?? []).length, 2, "one heading per domain, above the list or the no-foreign-keys fallback");
+  });
+
+  it('links the 3D explorer from the Schema section and from every table', () => {
+    const html = file('index.html');
+    assert.match(html, /<section id="schema"><h2>Schema<\/h2><p class="muted"><a href="schema-3d.html">Open the 3D explorer<\/a>/);
+    assert.equal(count(html, /<a class="meta" href="schema-3d\.html#t=/g), 3);
+    assert.match(html, /<a class="meta" href="schema-3d\.html#t=widget">View in 3D<\/a>/);
+    assert.match(file('README.md'), /!\[Entity-relationship diagram\]\(erd\.svg\)\n\n\[Open the 3D explorer\]\(schema-3d\.html\)/);
   });
 });
 
@@ -925,4 +947,275 @@ describe('fk-index suggests the cheaper index and prices it', () => {
       [['created_by'], ['org_id', 'user_id'], ['owner_id']].sort());
     for (const f of found) assert.equal(f.title, 'Foreign key without index');
   });
+});
+
+describe('bundleThree', () => {
+  it('rewrites the pinned Three.js modules into one classic script that runs', () => {
+    const bundle = bundleThree(threeDir());
+    assert.match(bundle, /^\/\* three:start Three\.js 0\.185\.1 /);
+    assert.match(bundle, /\/\* three:end \*\/\n$/);
+    // A classic script may not contain module syntax; the sandbox would throw a SyntaxError.
+    const ctx: Record<string, unknown> = {};
+    // The sandbox realm has its own Object.prototype, so hand the result out as JSON: strict deep
+    // equality would otherwise reject an object built inside it.
+    vm.runInNewContext(`${bundle}\nresult = JSON.stringify({ rev: THREE.REVISION, renderer: typeof THREE.WebGLRenderer, orbit: typeof OrbitControls, v3: typeof THREE.Vector3 });`, ctx);
+    assert.deepEqual(JSON.parse(ctx.result as string), { rev: '185', renderer: 'function', orbit: 'function', v3: 'function' });
+  });
+});
+
+describe('schema3dModel', () => {
+  let tables: Map<string, Table>;
+  let model: Schema3dModel;
+  before(async () => {
+    ({ tables } = await parseSchema(read('examples/sample-schema.sql'), 'examples/sample-schema.sql'));
+    const narratives = json('examples/narratives.json');
+    const findings = new Reviewer(tables, narratives).run();
+    model = schema3dModel(tables, narratives, findings, 'examples/sample-schema.sql');
+  });
+
+  it('has one entry per table and per foreign key', () => {
+    assert.equal(model.tables.length, tables.size);
+    assert.equal(model.fks.length, [...tables.values()].reduce((n, t) => n + t.fks.length, 0));
+    assert.equal(model.title, 'Portal database');
+    assert.equal(model.source, 'examples/sample-schema.sql');
+  });
+
+  it('carries every field the panel reads on every foreign key', () => {
+    const fields = ['child', 'columns', 'parent', 'ref_columns', 'name', 'cardinality', 'nullable', 'unique',
+      'indexed', 'on_delete', 'why', 'words', 'findings'];
+    for (const fk of model.fks) {
+      for (const k of fields) assert.ok(k in fk, `${k} missing on ${fk.child}.${fk.columns.join(',')}`);
+      assert.match(fk.words, /^one .* · (required|optional) · ON DELETE /);
+    }
+  });
+
+  it('attaches fk-index findings to their key and primary-key findings to their table', () => {
+    const keyed = model.fks.flatMap((fk) => fk.findings.map((f) => f.check));
+    const tabled = model.tables.flatMap((t) => t.findings.map((f) => f.check));
+    assert.ok(keyed.includes('fk-index'));
+    assert.ok(!tabled.includes('fk-index'));
+    assert.ok(tabled.includes('primary-key'));
+    assert.ok(!keyed.includes('primary-key'));
+    const sessions = model.fks.find((fk) => fk.child === 'sessions' && fk.columns.join() === 'user_id')!;
+    assert.deepEqual(sessions.findings.map((f) => f.check), ['fk-index']);
+  });
+
+  it('names tenant as the only hub of the sample (10 of 18 other tables)', () => {
+    assert.deepEqual(model.hubs, ['tenant']);
+    assert.deepEqual(hubTables(tables), ['tenant']);
+  });
+
+  it('gives every table a domain that exists in the domain list, with a colour', () => {
+    const keys = new Map(model.domains.map((d) => [d.key, d]));
+    for (const t of model.tables) assert.ok(keys.has(t.domain), `${t.name} → ${t.domain}`);
+    for (const d of model.domains) assert.match(d.color, /^#[0-9a-f]{6}$/);
+    assert.deepEqual(model.domains.map((d) => d.key), ['tenant', 'auth', 'permission', 'github', 'approvals', 'billing', 'unclaimed']);
+  });
+
+  it('puts the table no domain claims (legacy_import_staging) into an unclaimed domain, listed last', () => {
+    assert.equal(model.tables.find((t) => t.name === 'legacy_import_staging')!.domain, 'unclaimed');
+    assert.equal(model.domains.at(-1)!.title, 'Unclaimed');
+    assert.equal(model.domains.at(-1)!.color, '#7f8a99');
+  });
+
+  it('without narratives, groups tables by dependency depth', async () => {
+    const { tables: bare } = await parseSchema(read('examples/sample-schema.sql'), 'examples/sample-schema.sql');
+    const m = schema3dModel(bare, {}, [], 'examples/sample-schema.sql');
+    assert.ok(m.domains.length > 1);
+    assert.ok(m.domains.every((d) => /^depth-\d+$/.test(d.key)));
+    assert.equal(m.tables.find((t) => t.name === 'provider')!.domain, 'depth-0');
+    assert.equal(m.tables.find((t) => t.name === 'tenant')!.domain, 'depth-1');
+    assert.equal(m.title, 'Database');
+    const depth = dependencyDepths(bare);
+    assert.equal(depth.get('provider'), 0);
+    assert.equal(depth.get('tenant'), 1);
+  });
+
+  it('names org as the hub of the edge-case fixture (6 of 9 other tables) and cuts its site/region cycle', async () => {
+    const { tables: edge } = await parseSchema(read('test/fixtures/edge-cases.sql'), 'test/fixtures/edge-cases.sql');
+    assert.deepEqual(hubTables(edge), ['org']);
+    // site and region reference each other; without the cut, dependencyDepths would never return.
+    const depth = dependencyDepths(edge);
+    assert.equal(depth.get('site'), 1);
+    assert.equal(depth.get('region'), 2);
+  });
+});
+
+describe('schema-3d layout', () => {
+  let model: Schema3dModel;
+  let bare: Schema3dModel;
+  before(async () => {
+    const { tables } = await parseSchema(read('examples/sample-schema.sql'), 'examples/sample-schema.sql');
+    const narratives = json('examples/narratives.json');
+    model = schema3dModel(tables, narratives, new Reviewer(tables, narratives).run(), 'x.sql');
+    const { tables: t2 } = await parseSchema(read('examples/sample-schema.sql'), 'examples/sample-schema.sql');
+    bare = schema3dModel(t2, {}, [], 'x.sql');
+  });
+  type Island = ReturnType<typeof layout>['islands'][number];
+  const overlap = (a: Island, b: Island): boolean =>
+    Math.abs(a.cx - b.cx) < (a.w + b.w) / 2 + ISLAND_GAP && Math.abs(a.cz - b.cz) < (a.d + b.d) / 2 + ISLAND_GAP;
+
+  it("puts the hub's domain at the origin and the rest on a ring", () => {
+    const L = layout(model);
+    const centre = L.islands.find((i) => i.cx === 0 && i.cz === 0)!;
+    assert.equal(centre.key, 'tenant');
+    assert.ok(L.radius > 0);
+    for (const i of L.islands) if (i !== centre) assert.ok(Math.abs(Math.hypot(i.cx, i.cz) - L.radius) < 1e-6, i.key);
+  });
+
+  it('sorts parents before children inside an island, then by name', () => {
+    const L = layout(model);
+    const depth = depths(model);
+    for (const i of L.islands) {
+      for (let k = 1; k < i.tables.length; k += 1) {
+        const a = i.tables[k - 1], b = i.tables[k];
+        assert.ok(depth.get(a)! < depth.get(b)! || (depth.get(a) === depth.get(b) && a < b), `${i.key}: ${a} before ${b}`);
+      }
+    }
+  });
+
+  it('never lets two islands overlap, on the sample and on a crowded synthetic schema', () => {
+    const check = (m: Schema3dModel): void => {
+      const L = layout(m);
+      for (const a of L.islands) for (const b of L.islands) if (a !== b) assert.ok(!overlap(a, b), `${a.key} overlaps ${b.key}`);
+    };
+    check(model);
+    const sizes = [3, 20, 7, 14, 1, 30, 9, 12, 5, 25, 2, 18];
+    const domains = sizes.map((_, i) => ({ key: `d${i}`, title: `D${i}`, blurb: '', color: '#000000' }));
+    const tables = sizes.flatMap((n, i) => Array.from({ length: n }, (_, k) => ({
+      name: `d${i}_t${k}`, domain: `d${i}`, description: '', source_line: 1, columns: [], findings: [],
+    })));
+    const fks = tables.filter((t) => t.name !== 'd0_t0').map((t) => ({
+      child: t.name, columns: ['d0_t0_id'], parent: 'd0_t0', ref_columns: ['id'], name: null, cardinality: '1:N',
+      nullable: false, unique: false, indexed: true, on_delete: 'NO ACTION', why: null, words: 'w', findings: [],
+    }));
+    check({ title: 'x', source: 'x', domains, tables, fks, hubs: ['d0_t0'] });
+  });
+
+  it('keeps the ring tight: the radius is the seating estimate widened at most three times', () => {
+    // The widening loop would also pass the overlap test from a radius of 1 after forty tries,
+    // leaving an absurdly sparse scene; this pins the starting estimate as well.
+    for (const m of [model, bare]) {
+      const L = layout(m);
+      const centre = L.islands.find((i) => i.cx === 0 && i.cz === 0)!;
+      const ring = L.islands.filter((i) => i !== centre);
+      const foot = (i: Island): number => Math.max(i.w, i.d);
+      const around = ring.reduce((s, i) => s + foot(i) + ISLAND_GAP, 0) / (2 * Math.PI);
+      const clear = (foot(centre) + Math.max(...ring.map(foot))) / 2 + ISLAND_GAP;
+      const estimate = Math.max(around, clear);
+      assert.ok(L.radius >= estimate - 1e-9 && L.radius <= estimate * 1.1 ** 3 + 1e-9, `radius ${L.radius} vs estimate ${estimate}`);
+    }
+  });
+
+  it('places cards on a grid spaced for the column card, and gives the same answer twice', () => {
+    const L = layout(model);
+    assert.equal(JSON.stringify(L), JSON.stringify(layout(model)));
+    const names = Object.keys(L.pos);
+    assert.equal(names.length, model.tables.length);
+    for (const a of names) for (const b of names) {
+      if (a < b) {
+        const dx = Math.abs(L.pos[a].x - L.pos[b].x), dz = Math.abs(L.pos[a].z - L.pos[b].z);
+        assert.ok(dx >= CARD.stepX - 1e-6 || dz >= CARD.stepZ - 1e-6, `${a} and ${b} too close`);
+      }
+    }
+  });
+
+  it('makes one arc per foreign key whose ends both exist, low inside an island and lifted across', () => {
+    const L = layout(model);
+    assert.equal(L.arcs.length, model.fks.length);
+    for (const a of L.arcs) {
+      const fk = model.fks[a.i];
+      const inner = model.tables.find((t) => t.name === fk.child)!.domain === model.tables.find((t) => t.name === fk.parent)!.domain;
+      if (fk.child === fk.parent) assert.equal(a.kind, 'self');
+      else assert.equal(a.kind, inner ? 'inner' : 'cross');
+      if (a.kind === 'cross') assert.ok(a.lift > 3);
+      if (a.kind === 'inner') assert.equal(a.lift, 1.2);
+    }
+  });
+
+  it('with no narratives lays out one island per dependency depth', () => {
+    const L = layout(bare);
+    assert.ok(L.islands.length > 1);
+    assert.ok(L.islands.every((i) => i.key.startsWith('depth-')));
+    assert.equal(L.islands.find((i) => i.cx === 0 && i.cz === 0)!.key, 'depth-1', 'tenant, the hub, sits at depth 1');
+  });
+});
+
+describe('schema-3d.html', () => {
+  const ddl = `
+    -- The organisation. </script><b>not html</b>
+    CREATE TABLE org (id BIGINT PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE widget (id UUID PRIMARY KEY, org_id BIGINT NOT NULL REFERENCES org(id) ON DELETE CASCADE);
+    CREATE TABLE note (id UUID PRIMARY KEY, widget_id UUID REFERENCES widget(id), parent_id UUID REFERENCES note(id));`;
+  const narratives = {
+    database: { title: 'Informer', blurb: 'b' },
+    domains: [
+      { key: 'core', title: 'Core', blurb: 'c', tenant_scoped: false, tables: ['org'] },
+      { key: 'work', title: 'Work', blurb: 'w', tenant_scoped: false, tables: ['widget', 'note'] },
+    ],
+    assertions: { cardinality: [{ parent: 'org', child: 'widget', expect: '1:N', why: 'a widget is built by one organisation' }] },
+  };
+  let out = '';
+  let html = '';
+  before(async () => {
+    const { tables } = await parseSchema(ddl, 'inline');
+    const findings = new Reviewer(tables, narratives).run();
+    out = mkdtempSync(path.join(tmpdir(), 'db-review-3d-'));
+    writeSchema3d(out, schema3dModel(tables, narratives, findings, 'inline'));
+    html = readFileSync(path.join(out, 'schema-3d.html'), 'utf8');
+  });
+  after(() => rmSync(out, { recursive: true, force: true }));
+
+  it('is one self-contained page: model, Three.js, layout and app inline, nothing from the web', () => {
+    assert.match(html, /^<!doctype html>/);
+    assert.match(html, /<title>Informer — 3D schema explorer<\/title>/);
+    assert.match(html, /<script>window\.SCHEMA3D=\{"title":"Informer"/);
+    assert.match(html, /\/\* three:start Three\.js 0\.185\.1/);
+    assert.match(html, /\/\* three:end \*\//);
+    assert.match(html, /\nfunction layout\(model\)/);
+    assert.match(html, /\nconst CARD = /);
+    assert.doesNotMatch(html, /^export /m);
+    assert.doesNotMatch(html, /(src|href)="http/);
+    assert.doesNotMatch(html, /importmap/);
+    assert.match(html, /Generated from <code>inline<\/code> on \d{4}-\d{2}-\d{2}/);
+  });
+
+  it('escapes the model so a table comment cannot close the script', () => {
+    assert.ok(!html.includes('</script><b>'), 'raw </script> from a comment leaked into the page');
+    assert.match(html, /\\u003c\/script>\\u003cb>/);
+  });
+
+  it('carries the why, the words and the self-reference', () => {
+    assert.match(html, /"why":"a widget is built by one organisation"/);
+    assert.match(html, /"words":"one org, many widget · required · ON DELETE CASCADE · not indexed"/);
+    assert.match(html, /"child":"note","columns":\["parent_id"\],"parent":"note"/);
+  });
+
+  it('has the controls the app looks up by id, each with a name', () => {
+    for (const id of ['scene', 'q', 'hubseg', 'hubinfo', 'reset', 'chips', 'tip', 'panel', 'live', 'nowebgl']) {
+      assert.match(html, new RegExp(` id="${id}"`), `#${id} missing`);
+    }
+    assert.match(html, /<label class="sr" for="q">/);
+    assert.match(html, /aria-live="polite"/);
+    assert.match(html, /aria-label="Domains"/);
+  });
+
+  it('is deterministic apart from the date line', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'db-review-3d-again-'));
+    try {
+      writeSchema3d(dir, JSON.parse(html.match(/window\.SCHEMA3D=(\{.*?\});<\/script>/)![1].replace(/\\u003c/g, '<')));
+      assert.equal(stable(readFileSync(path.join(dir, 'schema-3d.html'), 'utf8')), stable(html));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('browser files', () => {
+  for (const f of ['scripts/schema-3d-layout.js', 'scripts/schema-3d-app.js']) {
+    it(`${f} parses`, () => {
+      const run = spawnSync(process.execPath, ['--check', f], { cwd: root, encoding: 'utf8' });
+      assert.equal(run.status, 0, run.stderr);
+    });
+  }
 });

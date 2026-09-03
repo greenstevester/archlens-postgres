@@ -9,6 +9,28 @@ The version in `.claude-plugin/marketplace.json`, `.claude-plugin/plugin.json`,
 `skills/db-architecture-review/package.json` always match the tag. Users only receive an
 update when the marketplace entry's version changes.
 
+## [1.7.0](https://github.com/greenstevester/db-architecture-reviewer/releases/tag/v1.7.0) — 2026-09-03
+
+A schema past forty tables was unreadable in the flat diagram. Every run now also writes
+`schema-3d.html`, a self-contained page you rotate: one island per domain, the hub domain in the
+middle, every foreign key drawn as an arc, click any table or any arc for its detail.
+
+**Added**
+
+- `schema-3d.html`. Domain islands on a ring, cards on a grid inside each, arcs low inside an
+  island and lifted across islands, a dashed arc where the key has an `fk-index` finding, a red or
+  amber mark on a table with an error or warning. Click a table: its arcs stay lit, the rest fade,
+  a panel lists columns, references and findings. Click an arc: cardinality in words, nullable,
+  index, ON DELETE, the narrative why, findings on that key. Search, domain chips, a hub-edge
+  control (All, Muted, Hidden), deep links (`#t=orders`, `#fk=orders.tenant_id`), and a
+  "View in 3D" link on every table in `index.html`. Without narratives, islands are dependency
+  depths.
+- `three` 0.185.1 as the second pinned runtime dependency. The script rewrites its minified
+  modules into one classic script and inlines it, so the page still loads nothing from the web.
+- Two ratchets: no output file may load anything from the web, and the browser files must parse.
+
+No finding appears or disappears — counts and severities are identical on both fixtures.
+
 ## [1.6.0](https://github.com/greenstevester/db-architecture-reviewer/releases/tag/v1.6.0) — 2026-09-02
 
 `fk-index` says what the index it asks for will cost, and asks for the cheaper one where

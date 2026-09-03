@@ -20,3 +20,5 @@ See [FINDINGS.md](FINDINGS.md) for the design review.
 ## Diagram
 
 ![Entity-relationship diagram](erd.svg)
+
+[Open the 3D explorer](schema-3d.html) — a self-contained page: rotate, zoom, click any table or relationship.

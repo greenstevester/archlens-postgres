@@ -14,6 +14,7 @@
  *     <out>/README.md       markdown index + per-domain pages with SVG ERDs
  *     <out>/erd.svg         whole-schema entity-relationship diagram (one more per domain)
  *     <out>/FINDINGS.md     findings grouped by severity with fix suggestions
+ *     <out>/schema-3d.html  rotatable 3D view: domain islands, every foreign key as an arc
  *
  * Exit code is non-zero when findings at or above --fail-on exist, so this can
  * gate CI the same way a linter does.
@@ -21,6 +22,7 @@
  * Requires: Node 24+, libpg-query  (npm install)
  */
 import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -1623,7 +1625,8 @@ export function writeMarkdown(outdir: string, tables: Map<string, Table>, narrat
   }
   const unclaimed = [...tables.values()].filter((t) => t.domain === null).map((t) => t.name);
   if (unclaimed.length) lines.push('', `Unclaimed tables: ${unclaimed.map((n) => `\`${n}\``).join(', ')}`);
-  lines.push('', '## Diagram', '', '![Entity-relationship diagram](erd.svg)');
+  lines.push('', '## Diagram', '', '![Entity-relationship diagram](erd.svg)', '',
+    '[Open the 3D explorer](schema-3d.html) — a self-contained page: rotate, zoom, click any table or relationship.');
   writeFileSync(path.join(outdir, 'erd.svg'), `${svgErd(tables, [...tables.keys()], true)}\n`);
   writeFileSync(path.join(outdir, 'README.md'), `${lines.join('\n')}\n`);
 
@@ -1813,7 +1816,7 @@ export function writeHtml(outdir: string, tables: Map<string, Table>, narratives
       + `${t.section ? ` · ${e(t.section)}` : ''} · line ${t.source_line}`;
     const desc = t.description.length ? `<p class="desc">${e(t.description.join(' '))}</p>` : '';
     return `<section class="table" id="t-${e(t.name)}" data-name="${e(t.name)}" data-cols="${e(t.columns.map((c) => c.name).join(' '))}">`
-      + `<header><h3>${e(t.name)}</h3><span class="meta">${meta}</span></header>${desc}${fnd}`
+      + `<header><h3>${e(t.name)}</h3><span class="meta">${meta}</span><a class="meta" href="schema-3d.html#t=${e(t.name)}">View in 3D</a></header>${desc}${fnd}`
       + '<table><thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Default</th><th>References</th><th>Notes</th></tr></thead>'
       + `<tbody>${rows.join('')}</tbody></table>`
       + `<div class="cols2"><div><h4>Indexes</h4><ul>${ix.join('') || '<li class=muted>none</li>'}</ul></div>`
@@ -1850,7 +1853,8 @@ export function writeHtml(outdir: string, tables: Map<string, Table>, narratives
   body.push(`<section id="findings"><h2>Findings</h2>${fitems.join('') || '<p class=muted>No findings.</p>'}</section>`);
 
   // The whole-schema diagram is present in every run, narratives or not.
-  body.push(`<section id="schema"><h2>Schema</h2><div class="erd-wrap">${svgErd(tables, [...tables.keys()])}</div></section>`);
+  body.push(`<section id="schema"><h2>Schema</h2><p class="muted"><a href="schema-3d.html">Open the 3D explorer</a> · rotate, zoom, click any table or relationship. Every foreign key is drawn.</p>`
+    + `<div class="erd-wrap">${svgErd(tables, [...tables.keys()])}</div></section>`);
 
   for (const d of domains) {
     const secs = (d.tables as string[]).map((n) => {
@@ -1881,6 +1885,239 @@ export function writeHtml(outdir: string, tables: Map<string, Table>, narratives
     + `<input type="search" placeholder="Filter tables and columns"/>${nav.join('')}</nav>`
     + `<main>${body.join('')}</main><script>${JS}</script></body></html>`;
   writeFileSync(path.join(outdir, 'index.html'), page);
+}
+
+// ----------------------------------------------------------------------------
+// 3D explorer: vendored Three.js, model, writer
+// ----------------------------------------------------------------------------
+
+const THREE_FILES = {
+  core: 'build/three.core.min.js',
+  main: 'build/three.module.min.js',
+  orbit: 'examples/jsm/controls/OrbitControls.js',
+};
+/** How three.module.min.js names its core chunk in its own import and re-export. */
+const CORE_CHUNK = './three.core.min.js';
+
+/** Where npm put three. Its exports map hides package.json, so resolve the main entry
+ *  (build/three.cjs) and step up out of build/. */
+export function threeDir(): string {
+  return path.resolve(path.dirname(createRequire(import.meta.url).resolve('three')), '..');
+}
+
+/** `export{a as Name,b}` at the end of a module becomes `return{Name:a,b:b}`. */
+function exportToReturn(src: string): string {
+  return src.replace(/export\s*\{([^}]*)\};?\s*$/, (_, list: string) =>
+    `return{${list.split(',').map((p) => p.trim()).filter(Boolean).map((p) => {
+      const [local, exported] = p.split(/\s+as\s+/);
+      return `${exported ?? local}:${local}`;
+    }).join(',')}};`);
+}
+
+/** `import{Name as a,b}from"<from>"` becomes `const{Name:a,b}=<obj>;`. */
+function importToConst(src: string, from: string, obj: string): string {
+  const quoted = from.replace(/[./]/g, '\\$&');
+  return src.replace(new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*['"]${quoted}['"];?`), (_, list: string) =>
+    `const{${list.split(',').map((p) => {
+      const [imported, local] = p.trim().split(/\s+as\s+/);
+      return local ? `${imported}:${local}` : imported;
+    }).filter(Boolean).join(',')}}=${obj};`);
+}
+
+/** `export{a,b}from"<from>"` re-exports vanish: the merged THREE object carries those names already. */
+function dropReexports(src: string, from: string): string {
+  const quoted = from.replace(/[./]/g, '\\$&');
+  return src.replace(new RegExp(`export\\s*\\{[^}]*\\}\\s*from\\s*['"]${quoted}['"];?`, 'g'), '');
+}
+
+/**
+ * Three.js as one classic script defining `THREE` and `OrbitControls`. The npm package ships only
+ * ES modules, which an inline <script> cannot import, so each file is wrapped in a function that
+ * returns its exports and every import becomes destructuring from the previous one.
+ * ponytail: four regular expressions against a pinned input, held by the bundleThree test. If an
+ * upgrade changes the file shape, wrap build/three.cjs (2.1 MB, no require calls) whole instead.
+ */
+export function bundleThree(dir: string): string {
+  const src = (f: string): string => readFileSync(path.join(dir, f), 'utf8');
+  const version = JSON.parse(src('package.json')).version as string;
+  const core = exportToReturn(src(THREE_FILES.core));
+  const mainSrc = dropReexports(importToConst(src(THREE_FILES.main), CORE_CHUNK, 'THREE_CORE'), CORE_CHUNK);
+  const main = exportToReturn(mainSrc);
+  const orbit = importToConst(src(THREE_FILES.orbit), 'three', 'THREE')
+    .replace(/export\s*\{\s*OrbitControls\s*\};?/, 'return OrbitControls;');
+  return `/* three:start Three.js ${version} MIT https://threejs.org */\n`
+    + `const THREE_CORE=(()=>{${core}})();\n`
+    + `const THREE_MAIN=(()=>{${main}})();\n`
+    + 'const THREE={...THREE_CORE,...THREE_MAIN};\n'
+    + `const OrbitControls=(()=>{${orbit}})();\n`
+    + '/* three:end */\n';
+}
+
+export interface Schema3dFinding { id: string; severity: Severity; title: string; check: string }
+export interface Schema3dColumn { name: string; type: string; pk: boolean; fk: boolean; not_null: boolean }
+export interface Schema3dTable {
+  name: string;
+  domain: string;
+  description: string;
+  source_line: number;
+  columns: Schema3dColumn[];
+  findings: Schema3dFinding[];
+}
+export interface Schema3dFk {
+  child: string;
+  columns: string[];
+  parent: string;
+  ref_columns: string[];
+  name: string | null;
+  cardinality: string;
+  nullable: boolean;
+  unique: boolean;
+  indexed: boolean;
+  on_delete: string;
+  why: string | null;
+  words: string;
+  findings: Schema3dFinding[];
+}
+export interface Schema3dDomain { key: string; title: string; blurb: string; color: string }
+export interface Schema3dModel {
+  title: string;
+  source: string;
+  domains: Schema3dDomain[];
+  tables: Schema3dTable[];
+  fks: Schema3dFk[];
+  hubs: string[];
+}
+
+// Twelve colours by domain position, cycling past twelve; grey for tables no domain claims.
+const PALETTE = ['#f5c542', '#4f8cff', '#38c7d6', '#3ecf8e', '#ff7a59', '#c27cff',
+  '#ff5e8a', '#a3d139', '#f08a24', '#e06bd1', '#8fa3bf', '#5ad1b0'];
+const UNCLAIMED_COLOR = '#7f8a99';
+/** Checks whose finding is about one foreign key rather than the table as a whole. */
+const KEY_CHECKS = new Set(['fk-index', 'fk-nullable', 'fk-on-delete', 'cardinality', 'undocumented-relationship']);
+
+/** Longest parent chain above each table, memoized; a cycle is cut where it closes (svgErd() layers the same way). */
+export function dependencyDepths(tables: Map<string, Table>): Map<string, number> {
+  const depth = new Map<string, number>();
+  const visiting = new Set<string>();
+  const depthOf = (n: string): number => {
+    if (depth.has(n)) return depth.get(n)!;
+    if (visiting.has(n)) return 0;
+    visiting.add(n);
+    const parents = tables.get(n)!.fks.map((fk) => fk.ref_table).filter((p) => p !== n && tables.has(p));
+    const d = parents.reduce((m, p) => Math.max(m, depthOf(p) + 1), 0);
+    visiting.delete(n);
+    depth.set(n, d);
+    return d;
+  };
+  for (const n of tables.keys()) depthOf(n);
+  return depth;
+}
+
+/** Tables whose inbound foreign keys number at least a third of the other tables, and at least four; most-referenced first. */
+export function hubTables(tables: Map<string, Table>): string[] {
+  const min = Math.max(4, Math.ceil((tables.size - 1) / 3));
+  const inbound = (n: string): number => tables.get(n)!.referenced_by.length;
+  return [...tables.keys()].filter((n) => inbound(n) >= min)
+    .sort((a, b) => inbound(b) - inbound(a) || (a < b ? -1 : 1));
+}
+
+/** Everything schema-3d.html needs, from the same objects the other writers use. */
+export function schema3dModel(tables: Map<string, Table>, narratives: Narratives, findings: Finding[], source: string): Schema3dModel {
+  const fmap = new Map(findings.map((f) => [f.id, f]));
+  const brief = (f: Finding): Schema3dFinding => ({ id: f.id, severity: f.severity, title: f.title, check: f.check });
+  const declared = (narratives.domains ?? []) as Narratives[];
+  const domains: Schema3dDomain[] = declared.map((d, i) => ({
+    key: d.key as string, title: (d.title ?? d.key) as string, blurb: (d.blurb ?? '') as string, color: PALETTE[i % PALETTE.length],
+  }));
+  const domainOf = new Map<string, string>();
+  if (declared.length) {
+    for (const t of tables.values()) domainOf.set(t.name, t.domain ?? 'unclaimed');
+    if ([...tables.values()].some((t) => t.domain === null)) {
+      domains.push({ key: 'unclaimed', title: 'Unclaimed', blurb: 'Present in the schema, absent from every domain.', color: UNCLAIMED_COLOR });
+    }
+  } else {
+    const depth = dependencyDepths(tables);
+    const deepest = Math.max(0, ...depth.values());
+    for (let d = 0; d <= deepest; d += 1) {
+      domains.push({
+        key: `depth-${d}`,
+        title: d === 0 ? 'Depth 0: tables that depend on nothing' : `Depth ${d}: ${d} step${d === 1 ? '' : 's'} below a root`,
+        blurb: '', color: PALETTE[d % PALETTE.length],
+      });
+    }
+    for (const t of tables.values()) domainOf.set(t.name, `depth-${depth.get(t.name)}`);
+  }
+
+  const out: Schema3dTable[] = [];
+  const fks: Schema3dFk[] = [];
+  for (const t of tables.values()) {
+    const mine = t.findings.flatMap((id) => { const f = fmap.get(id); return f ? [f] : []; });
+    const taken = new Set<Finding>();
+    const rels = relationships(t, narratives);
+    t.fks.forEach((fk, i) => {
+      const onKey = mine.filter((f) => KEY_CHECKS.has(f.check) && f.columns.length > 0 && sameSet(f.columns, fk.columns));
+      onKey.forEach((f) => taken.add(f));
+      fks.push({
+        child: t.name, columns: fk.columns, parent: fk.ref_table, ref_columns: fk.ref_columns, name: fk.name,
+        cardinality: fk.cardinality, nullable: fk.nullable, unique: fk.unique, indexed: fk.indexed, on_delete: fk.on_delete,
+        why: rels[i].why, words: describeRelationship(rels[i]), findings: onKey.map(brief),
+      });
+    });
+    out.push({
+      name: t.name, domain: domainOf.get(t.name)!, description: t.description.join(' '), source_line: t.source_line,
+      columns: t.columns.map((c) => ({ name: c.name, type: c.type, pk: c.is_pk, fk: c.is_fk, not_null: c.not_null })),
+      findings: mine.filter((f) => !taken.has(f)).map(brief),
+    });
+  }
+  return {
+    title: ((narratives.database ?? {}).title ?? 'Database') as string,
+    source, domains, tables: out, fks, hubs: hubTables(tables),
+  };
+}
+
+const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
+
+/** A module's `export` keywords removed, so it can be inlined as a classic script. */
+function inlineModule(src: string): string {
+  return src.replace(/^export (?=(function|const|let|class)\b)/gm, '');
+}
+
+/**
+ * One self-contained page: the model as JSON, Three.js rewritten as a classic script, the layout
+ * module and the app. It loads nothing, so it opens from disk, an email or a USB stick.
+ */
+export function writeSchema3d(outdir: string, model: Schema3dModel, three: string = bundleThree(threeDir())): void {
+  const e = escapeHtml;
+  const asset = (f: string): string => readFileSync(path.join(SCRIPTS_DIR, f), 'utf8');
+  // `<` becomes < so a table comment containing </script> cannot end the script early.
+  const data = JSON.stringify(model).replace(/</g, '\\u003c');
+  const page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + `<title>${e(model.title)} — 3D schema explorer</title><style>${asset('schema-3d.css')}</style></head><body>\n`
+    + '<div id="scene" role="application" aria-label="3D schema explorer">'
+    + '<div class="ov tl">'
+    + '<label class="sr" for="q">Find table or column</label>'
+    + '<input id="q" type="search" placeholder="Find table or column… ( / )" autocomplete="off">'
+    + '<div class="row"><span class="lbl">Hub edges</span>'
+    + '<span class="seg" id="hubseg" role="group" aria-label="Hub edges">'
+    + '<button type="button" data-m="all" class="on" aria-pressed="true">All</button>'
+    + '<button type="button" data-m="muted" aria-pressed="false">Muted</button>'
+    + '<button type="button" data-m="hidden" aria-pressed="false">Hidden</button></span>'
+    + '<span id="hubinfo" class="lbl"></span>'
+    + '<button type="button" id="reset" class="plain">Reset view (Esc)</button></div>'
+    + '<div class="chips" id="chips" role="group" aria-label="Domains"></div></div>'
+    + '<div class="ov help">drag rotate · right-drag pan · scroll zoom · click a table or a line · double-click flies there · Esc clears</div>'
+    + '<div id="tip" role="tooltip"></div>'
+    + '<aside class="panel" id="panel" aria-label="Detail"></aside>'
+    + '<p id="live" class="sr" aria-live="polite"></p>'
+    + '<div id="nowebgl" hidden><p>This page needs WebGL, which this browser has turned off. The flat diagram is in <a href="index.html#schema">index.html</a>.</p></div>'
+    + '</div>\n'
+    + `<footer>Generated from <code>${e(model.source)}</code> on ${localToday()} · <a href="index.html">Docs and findings</a></footer>\n`
+    + `<script>window.SCHEMA3D=${data};</script>\n`
+    + `<script>${three}</script>\n`
+    + `<script>${inlineModule(asset('schema-3d-layout.js'))}</script>\n`
+    + `<script>${asset('schema-3d-app.js')}</script>\n`
+    + '</body></html>\n';
+  writeFileSync(path.join(outdir, 'schema-3d.html'), page);
 }
 
 // ----------------------------------------------------------------------------
@@ -1979,6 +2216,7 @@ export async function main(argv: string[]): Promise<number> {
   writeFileSync(path.join(outdir, 'schema.json'), JSON.stringify(doc, null, 2));
   writeMarkdown(outdir, tables, narratives, findings, doc.stats, dismissed);
   writeHtml(outdir, tables, narratives, findings, doc.stats, schemaPath);
+  writeSchema3d(outdir, schema3dModel(tables, narratives, findings, schemaPath));
 
   const s = doc.stats.findings as Record<Severity, number>;
   if (!values.quiet) {

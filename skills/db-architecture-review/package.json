@@ -1,6 +1,6 @@
 {
   "name": "db-architecture-review",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
   "description": "Document a PostgreSQL schema and review its design in one run.",
   "type": "module",
@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "libpg-query": "17.7.4"
+    "libpg-query": "17.7.4",
+    "three": "0.185.1"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

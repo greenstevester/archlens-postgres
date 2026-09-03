@@ -1,0 +1,52 @@
+/* schema-3d.css — the explorer is one dark scene, so no light theme. */
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; background: #0e1116; color: #dfe5ee; font: 14px system-ui, sans-serif; }
+#scene { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; }
+#scene canvas { display: block; width: 100%; height: 100%; }
+footer { flex: 0 0 auto; padding: 5px 12px; font-size: 11px; color: #7f8a99; border-top: 1px solid #1f2530; }
+footer a, .panel a { color: #8fb8ea; text-decoration: none; }
+footer a:hover, .panel a:hover { text-decoration: underline; }
+code { font: 12px ui-monospace, Menlo, Consolas, monospace; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.ov { position: absolute; font-size: 12px; color: #dfe5ee; }
+.ov.tl { left: 12px; top: 12px; display: flex; flex-direction: column; gap: 8px; max-width: min(460px, calc(100% - 24px)); }
+.ov.help { left: 12px; bottom: 10px; color: #7f8a99; font-size: 11px; pointer-events: none; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lbl { color: #9aa4b2; }
+#q { background: rgba(20,24,31,.92); border: 1px solid #2b323d; color: #e8ecf2; border-radius: 6px; padding: 6px 9px; width: 260px; font: 13px system-ui, sans-serif; }
+.plain { background: rgba(20,24,31,.92); border: 1px solid #2b323d; color: #c8d0da; border-radius: 6px; padding: 4px 9px; cursor: pointer; font: 12px system-ui, sans-serif; }
+.seg { display: inline-flex; border: 1px solid #2b323d; border-radius: 6px; overflow: hidden; background: rgba(20,24,31,.92); }
+.seg button { background: none; border: 0; color: #9aa4b2; padding: 5px 10px; cursor: pointer; font: 12px system-ui, sans-serif; }
+.seg button.on { background: #2e3a4d; color: #fff; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chips button { border: 1px solid #2b323d; background: rgba(20,24,31,.92); color: #c8d0da; border-radius: 12px; padding: 2px 8px; cursor: pointer; font: 11px system-ui, sans-serif; display: inline-flex; align-items: center; gap: 5px; }
+.chips button i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.chips button.off { opacity: .35; }
+button:focus-visible, #q:focus-visible { outline: 2px solid #8fb8ea; outline-offset: 1px; }
+
+#tip { position: absolute; pointer-events: none; background: rgba(16,19,25,.95); border: 1px solid #2b323d; border-radius: 6px; padding: 5px 8px; font: 12px ui-monospace, Menlo, Consolas, monospace; color: #e8ecf2; display: none; white-space: nowrap; }
+#nowebgl { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+#nowebgl[hidden] { display: none; }
+
+.panel { position: absolute; right: 12px; top: 12px; bottom: 12px; width: min(340px, calc(100% - 24px)); background: rgba(16,19,25,.94); border: 1px solid #2b323d; border-radius: 10px; padding: 14px 16px; overflow: auto; font-size: 13px; display: none; }
+.panel.show { display: block; }
+.panel h3 { font: 700 15px ui-monospace, Menlo, Consolas, monospace; margin: 0 0 2px; padding-right: 22px; word-break: break-all; }
+.panel .dom { color: #9aa4b2; font-size: 12px; margin-bottom: 10px; }
+.panel h4 { font: 600 11px system-ui, sans-serif; text-transform: uppercase; letter-spacing: .05em; color: #9aa4b2; margin: 12px 0 4px; }
+.panel ul { list-style: none; margin: 0; padding: 0; }
+.panel li { padding: 3px 0; border-bottom: 1px solid #1f2530; font: 12px ui-monospace, Menlo, Consolas, monospace; display: flex; gap: 8px; align-items: baseline; }
+.panel li .t { color: #8b95a5; margin-left: auto; text-align: right; }
+.panel li .k { color: #7cb3e0; font-weight: 700; font-size: 10px; }
+.panel dl { margin: 0; display: grid; grid-template-columns: 96px 1fr; gap: 4px 10px; font-size: 12px; }
+.panel dt { color: #9aa4b2; }
+.panel dd { margin: 0; font-family: ui-monospace, Menlo, Consolas, monospace; }
+.panel .why { color: #c8d0da; font-style: italic; line-height: 1.4; margin: 2px 0; }
+.panel .muted { color: #7f8a99; }
+.panel .fnd li { font-family: system-ui, sans-serif; }
+.sev { font-weight: 700; font-size: 11px; }
+.sev.error { color: #f28b82; }
+.sev.warn { color: #f2c14e; }
+.sev.info { color: #8fb8ea; }
+.panel .close { position: absolute; right: 10px; top: 8px; background: none; border: 0; color: #9aa4b2; font-size: 16px; cursor: pointer; }
+@media (max-width: 720px) { .panel { top: auto; height: 45%; left: 12px; width: auto; } .ov.help { display: none; } }
