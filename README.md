@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="icon.png" alt="Database Architecture Review icon" width="128" height="128">
+  <a href="https://greensill.net/postgres-schema-gallery/"><img src="https://greensill.net/postgres-schema-gallery/banner.gif" alt="A real PostgreSQL schema turning in the 3D explorer: islands per domain, every foreign key as an arc" width="800"></a>
+</p>
+<p align="center">
+  <a href="https://greensill.net/postgres-schema-gallery/"><b>See it on real schemas: the postgres-schema-gallery</b></a><br>
+  <sub>Temporal, Miniflux, Listmonk, Matrix Synapse, Sourcegraph, Cal.com and GitLab (1,429 tables), each reviewed, each with a 3D explorer you can rotate.</sub>
 </p>
 
 # Database Architecture Review for Claude Code
@@ -8,10 +12,6 @@
 [![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-Skill-purple.svg)](https://claude.ai/code)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Node 24+](https://img.shields.io/badge/Node-24%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-
-[![Seven real schemas, rotatable: the postgres-schema-gallery](https://greensill.net/postgres-schema-gallery/banner.gif)](https://greensill.net/postgres-schema-gallery/)
-
-*See it on real schemas: [postgres-schema-gallery](https://greensill.net/postgres-schema-gallery/) runs this reviewer over Temporal, Miniflux, Listmonk, Matrix Synapse, Sourcegraph, Cal.com and GitLab (1,429 tables), each with a 3D explorer you can rotate.*
 
 > **Document your PostgreSQL schema and review its design in one run.** Every finding points at a table you can click through to, and the docs show each flaw next to the table it belongs to.
 
