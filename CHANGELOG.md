@@ -5,8 +5,8 @@ carry the reasoning and the test counts; this file is the summary you can read i
 sitting.
 
 The version in `.claude-plugin/marketplace.json`, `.claude-plugin/plugin.json`,
-`skills/db-architecture-review/.claude-plugin/plugin.json` and
-`skills/db-architecture-review/package.json` always match the tag. Users only receive an
+`skills/archlens-postgres/.claude-plugin/plugin.json` and
+`skills/archlens-postgres/package.json` always match the tag. Users only receive an
 update when the marketplace entry's version changes.
 
 ## [2.0.0](https://github.com/greenstevester/archlens-postgres/releases/tag/v2.0.0) — 2026-09-05

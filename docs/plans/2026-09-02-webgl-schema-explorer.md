@@ -224,7 +224,7 @@ Expected: no output, exit 0.
 
 ```bash
 git add scripts/archlens.ts test/archlens.test.ts
-git commit -m "feat(db-review): bundle the pinned Three.js modules into one classic script"
+git commit -m "feat(archlens): bundle the pinned Three.js modules into one classic script"
 ```
 
 ---
@@ -463,7 +463,7 @@ Run: `npm run typecheck` → exit 0.
 
 ```bash
 git add scripts/archlens.ts test/archlens.test.ts
-git commit -m "feat(db-review): build the 3D explorer model from tables, findings and narratives"
+git commit -m "feat(archlens): build the 3D explorer model from tables, findings and narratives"
 ```
 
 ---
@@ -703,7 +703,7 @@ Run: `npm run typecheck` → exit 0.
 
 ```bash
 git add scripts/schema-3d-layout.js scripts/schema-3d-layout.d.ts test/archlens.test.ts
-git commit -m "feat(db-review): lay out domain islands, cards and arcs for the 3D explorer"
+git commit -m "feat(archlens): lay out domain islands, cards and arcs for the 3D explorer"
 ```
 
 ---
@@ -740,7 +740,7 @@ describe('schema-3d.html', () => {
   before(async () => {
     const { tables } = await parseSchema(ddl, 'inline');
     const findings = new Reviewer(tables, narratives).run();
-    out = mkdtempSync(path.join(tmpdir(), 'db-review-3d-'));
+    out = mkdtempSync(path.join(tmpdir(), 'archlens-3d-'));
     writeSchema3d(out, schema3dModel(tables, narratives, findings, 'inline'));
     html = readFileSync(path.join(out, 'schema-3d.html'), 'utf8');
   });
@@ -781,7 +781,7 @@ describe('schema-3d.html', () => {
   });
 
   it('is deterministic apart from the date line', () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'db-review-3d-again-'));
+    const dir = mkdtempSync(path.join(tmpdir(), 'archlens-3d-again-'));
     try {
       writeSchema3d(dir, JSON.parse(html.match(/window\.SCHEMA3D=(\{.*?\});<\/script>/)![1].replace(/\\u003c/g, '<')));
       assert.equal(stable(readFileSync(path.join(dir, 'schema-3d.html'), 'utf8')), stable(html));
@@ -1349,7 +1349,7 @@ Expected: `OK`.
 
 ```bash
 git add scripts/schema-3d.css scripts/schema-3d-app.js scripts/archlens.ts test/archlens.test.ts
-git commit -m "feat(db-review): write schema-3d.html, a self-contained rotatable view of the schema"
+git commit -m "feat(archlens): write schema-3d.html, a self-contained rotatable view of the schema"
 ```
 
 ---
@@ -1425,7 +1425,7 @@ Expected: `pass 168`, `fail 0`.
 
 ```bash
 git add scripts/archlens.ts test/archlens.test.ts examples/out test/fixtures/edge-cases.out
-git commit -m "feat(db-review): link the 3D explorer from index.html and README.md; goldens"
+git commit -m "feat(archlens): link the 3D explorer from index.html and README.md; goldens"
 ```
 
 ---
@@ -1477,7 +1477,7 @@ Expected: `pass 172`, `fail 0`. Should the web ratchet fail on an existing file,
 
 ```bash
 git add test/archlens.test.ts
-git commit -m "test(db-review): ratchet against web loads and unparseable browser files"
+git commit -m "test(archlens): ratchet against web loads and unparseable browser files"
 ```
 
 ---
@@ -1535,7 +1535,7 @@ Expected: no errors either time; `org ←6`.
 
 - [ ] **Step 5: Hand the window to Steve**
 
-Raise the window (the `osascript` lines from `browser-watch-mode`), then ask him to click one table and one arc and say whether the focus mode and panel read right. Record his answer in the pull request body. If he asks for a visual change, make it in `schema-3d-app.js` or `schema-3d.css`, rerun `npm test` (the deterministic and golden tests will fail until the goldens are regenerated with the Task 7 Step 4 commands), and commit as `fix(db-review): <what changed>`.
+Raise the window (the `osascript` lines from `browser-watch-mode`), then ask him to click one table and one arc and say whether the focus mode and panel read right. Record his answer in the pull request body. If he asks for a visual change, make it in `schema-3d-app.js` or `schema-3d.css`, rerun `npm test` (the deterministic and golden tests will fail until the goldens are regenerated with the Task 7 Step 4 commands), and commit as `fix(archlens): <what changed>`.
 
 ---
 

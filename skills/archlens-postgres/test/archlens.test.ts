@@ -867,7 +867,7 @@ describe('dismissed findings in the output', () => {
     const r = new Reviewer(tables, narratives);
     findings = r.run();
     dismissed = r.dismissed;
-    out = mkdtempSync(path.join(tmpdir(), 'dbrev-dismissed-'));
+    out = mkdtempSync(path.join(tmpdir(), 'archlens-dismissed-'));
     writeMarkdown(out, tables, narratives, findings, { tables: 2, columns: 3, foreign_keys: 1, domains: 1, findings: { error: 0, warn: 0, info: 0 } } as any, dismissed);
   });
   after(() => rmSync(out, { recursive: true, force: true }));
@@ -880,7 +880,7 @@ describe('dismissed findings in the output', () => {
   });
 
   it('writes no such section when nothing was dismissed', () => {
-    const bare = mkdtempSync(path.join(tmpdir(), 'dbrev-nodismiss-'));
+    const bare = mkdtempSync(path.join(tmpdir(), 'archlens-nodismiss-'));
     const r = new Reviewer(tables, { domains: narratives.domains, assertions: {} });
     writeMarkdown(bare, tables, { domains: narratives.domains }, r.run(), { tables: 2, columns: 3, foreign_keys: 1, domains: 1, findings: { error: 0, warn: 0, info: 0 } } as any);
     assert.doesNotMatch(readFileSync(path.join(bare, 'FINDINGS.md'), 'utf8'), /Reviewed and dismissed/);

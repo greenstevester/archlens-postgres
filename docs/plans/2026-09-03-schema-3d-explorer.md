@@ -7,9 +7,9 @@
 schema of up to about 300 tables, grouped into domain islands, and clicks any table or any relationship line
 for its detail.
 
-**Architecture:** three new source files under `skills/db-architecture-review/scripts/` — a vendoring step that
+**Architecture:** three new source files under `skills/archlens-postgres/scripts/` — a vendoring step that
 rewrites Three.js from ES modules into one classic script, a pure layout module that Node tests and the browser
-both run, and the browser app — assembled by a fourth writer in `db-review.ts` into one self-contained file that
+both run, and the browser app — assembled by a fourth writer in `archlens.ts` into one self-contained file that
 loads nothing from the web.
 
 **Tech stack:** TypeScript run directly by Node 24, `three` 0.185.1 pinned exactly, `node --test`, no build step,
@@ -52,7 +52,7 @@ Task 3 and one call site in Task 5.
 
 ## File structure
 
-**New, in `skills/db-architecture-review/scripts/`:**
+**New, in `skills/archlens-postgres/scripts/`:**
 
 | File | Responsibility |
 |---|---|
@@ -65,17 +65,17 @@ Task 3 and one call site in Task 5.
 
 | File | Change |
 |---|---|
-| `scripts/db-review.ts` | `schema3dModel()` and `writeSchema3d()`; two kinds of link in `writeHtml()`; one link in `writeMarkdown()`; one call in `main()`. |
-| `test/db-review.test.ts` | Seven new groups (Task 2, 3, 4, 5, 7, 8). |
+| `scripts/archlens.ts` | `schema3dModel()` and `writeSchema3d()`; two kinds of link in `writeHtml()`; one link in `writeMarkdown()`; one call in `main()`. |
+| `test/archlens.test.ts` | Seven new groups (Task 2, 3, 4, 5, 7, 8). |
 | `package.json` | `three` at `0.185.1` in `dependencies`; version to 1.7.0. |
 | `.gitignore` | `.superpowers/`. |
 | `CLAUDE.md`, both `README.md`, `SKILL.md`, `CHANGELOG.md` | Task 11. |
-| `.claude-plugin/marketplace.json` (×2 fields), `.claude-plugin/plugin.json`, `skills/db-architecture-review/.claude-plugin/plugin.json` | Version to 1.7.0. |
+| `.claude-plugin/marketplace.json` (×2 fields), `.claude-plugin/plugin.json`, `skills/archlens-postgres/.claude-plugin/plugin.json` | Version to 1.7.0. |
 
 **Golden output, regenerated in Task 9:** `examples/out/schema-3d.html` and
 `test/fixtures/edge-cases.out/schema-3d.html`, about 0.8 MB each.
 
-Throughout, `<skill>` means `skills/db-architecture-review/` and commands run from there.
+Throughout, `<skill>` means `skills/archlens-postgres/` and commands run from there.
 
 ---
 
@@ -86,7 +86,7 @@ Throughout, `<skill>` means `skills/db-architecture-review/` and commands run fr
 - [ ] **Step 1: Create the worktree off `main`**
 
 ```bash
-cd ~/dev/git-repos/github/techno-8/db-architecture-reviewer
+cd ~/dev/git-repos/github/techno-8/archlens-postgres
 git worktree add ~/dev/git-repos/github/techno-8/db-3d-explorer -b feat/schema-3d-explorer main
 ```
 
@@ -101,7 +101,7 @@ cp docs/plans/2026-09-03-schema-3d-explorer.md ~/dev/git-repos/github/techno-8/d
 - [ ] **Step 3: Install dependencies in the worktree**
 
 ```bash
-cd ~/dev/git-repos/github/techno-8/db-3d-explorer/skills/db-architecture-review
+cd ~/dev/git-repos/github/techno-8/db-3d-explorer/skills/archlens-postgres
 npm install
 npm test 2>&1 | tail -5
 ```
@@ -137,7 +137,7 @@ version is a silent breakage waiting for the next `npm install`.
 - [ ] **Step 2: Install and confirm the exact version landed**
 
 ```bash
-cd skills/db-architecture-review && npm install
+cd skills/archlens-postgres && npm install
 node -p "require('./node_modules/three/package.json').version"
 ```
 
@@ -154,9 +154,9 @@ Append to `.gitignore`:
 - [ ] **Step 4: Commit — ASK STEVE FIRST**
 
 ```bash
-git add .gitignore skills/db-architecture-review/package.json skills/db-architecture-review/package-lock.json \
+git add .gitignore skills/archlens-postgres/package.json skills/archlens-postgres/package-lock.json \
         docs/specs/2026-09-02-webgl-schema-explorer.md docs/plans/2026-09-03-schema-3d-explorer.md
-git commit -m "chore(db-review): pin three 0.185.1 and record the 3D explorer spec and plan"
+git commit -m "chore(archlens): pin three 0.185.1 and record the 3D explorer spec and plan"
 ```
 
 ---
@@ -165,14 +165,14 @@ git commit -m "chore(db-review): pin three 0.185.1 and record the 3D explorer sp
 
 **Files:**
 - Create: `<skill>/scripts/schema-3d-vendor.ts`
-- Test: `<skill>/test/db-review.test.ts` (new group, appended)
+- Test: `<skill>/test/archlens.test.ts` (new group, appended)
 
 This code is not a draft. It was written, run against `three@0.185.1`, and produced a 785 KB bundle that
 evaluates in a Node sandbox to `REVISION 185` with a 451-name surface.
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `test/db-review.test.ts`, and add `vm` to the imports at the top of the file
+Append to `test/archlens.test.ts`, and add `vm` to the imports at the top of the file
 (`import vm from 'node:vm';`):
 
 ```ts
@@ -336,8 +336,8 @@ Expected: four passing tests, `tsc --noEmit` clean.
 - [ ] **Step 5: Commit — ASK STEVE FIRST**
 
 ```bash
-git add skills/db-architecture-review/scripts/schema-3d-vendor.ts skills/db-architecture-review/test/db-review.test.ts
-git commit -m "feat(db-review): rewrite three's ES modules into one classic script"
+git add skills/archlens-postgres/scripts/schema-3d-vendor.ts skills/archlens-postgres/test/archlens.test.ts
+git commit -m "feat(archlens): rewrite three's ES modules into one classic script"
 ```
 
 ---
@@ -345,8 +345,8 @@ git commit -m "feat(db-review): rewrite three's ES modules into one classic scri
 ### Task 3: The model
 
 **Files:**
-- Modify: `<skill>/scripts/db-review.ts` (append after `describeRelationship`, around line 1383)
-- Test: `<skill>/test/db-review.test.ts`
+- Modify: `<skill>/scripts/archlens.ts` (append after `describeRelationship`, around line 1383)
+- Test: `<skill>/test/archlens.test.ts`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -433,7 +433,7 @@ describe('schema3dModel on the edge-case fixture', () => {
 });
 ```
 
-Add `schema3dModel` to the existing import from `'../scripts/db-review.ts'`.
+Add `schema3dModel` to the existing import from `'../scripts/archlens.ts'`.
 
 - [ ] **Step 2: Run it and watch it fail**
 
@@ -445,7 +445,7 @@ Expected: FAIL — `schema3dModel is not a function`.
 
 - [ ] **Step 3: Write the implementation**
 
-Append to `scripts/db-review.ts`, after `describeRelationship`:
+Append to `scripts/archlens.ts`, after `describeRelationship`:
 
 ```ts
 // ---------------------------------------------------------------------------
@@ -612,8 +612,8 @@ Expected: seven passing tests, `tsc --noEmit` clean.
 - [ ] **Step 5: Commit — ASK STEVE FIRST**
 
 ```bash
-git add skills/db-architecture-review/scripts/db-review.ts skills/db-architecture-review/test/db-review.test.ts
-git commit -m "feat(db-review): build the 3D explorer's model from the reviewed schema"
+git add skills/archlens-postgres/scripts/archlens.ts skills/archlens-postgres/test/archlens.test.ts
+git commit -m "feat(archlens): build the 3D explorer's model from the reviewed schema"
 ```
 
 ---
@@ -622,7 +622,7 @@ git commit -m "feat(db-review): build the 3D explorer's model from the reviewed 
 
 **Files:**
 - Create: `<skill>/scripts/schema-3d-layout.js`
-- Test: `<skill>/test/db-review.test.ts`
+- Test: `<skill>/test/archlens.test.ts`
 
 Pure functions, no Three.js, no DOM. Node imports it in the tests; the writer inlines it into the page
 with the `export ` keywords stripped (Task 5), which is why it must have no imports of its own.
@@ -876,8 +876,8 @@ Expected: eight passing tests, syntax clean.
 - [ ] **Step 5: Commit — ASK STEVE FIRST**
 
 ```bash
-git add skills/db-architecture-review/scripts/schema-3d-layout.js skills/db-architecture-review/test/db-review.test.ts
-git commit -m "feat(db-review): lay out domain islands and relationship arcs"
+git add skills/archlens-postgres/scripts/schema-3d-layout.js skills/archlens-postgres/test/archlens.test.ts
+git commit -m "feat(archlens): lay out domain islands and relationship arcs"
 ```
 
 ---
@@ -885,8 +885,8 @@ git commit -m "feat(db-review): lay out domain islands and relationship arcs"
 ### Task 5: The writer
 
 **Files:**
-- Modify: `<skill>/scripts/db-review.ts` (`writeSchema3d`, and one call in `main()`)
-- Test: `<skill>/test/db-review.test.ts`
+- Modify: `<skill>/scripts/archlens.ts` (`writeSchema3d`, and one call in `main()`)
+- Test: `<skill>/test/archlens.test.ts`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -941,7 +941,7 @@ describe('writeSchema3d', () => {
 });
 ```
 
-Add `writeSchema3d` to the test's import from `'../scripts/db-review.ts'`.
+Add `writeSchema3d` to the test's import from `'../scripts/archlens.ts'`.
 
 - [ ] **Step 2: Run it and watch it fail**
 
@@ -953,7 +953,7 @@ Expected: FAIL — `writeSchema3d is not a function`.
 
 - [ ] **Step 3: Write the implementation**
 
-At the top of `scripts/db-review.ts`, beside the existing imports, add:
+At the top of `scripts/archlens.ts`, beside the existing imports, add:
 
 ```ts
 import { vendorThree } from './schema-3d-vendor.ts';
@@ -1038,8 +1038,8 @@ now (`/* app */` and `/* css */`) so this task's tests pass, and fill them in Ta
 - [ ] **Step 5: Commit — ASK STEVE FIRST**
 
 ```bash
-git add skills/db-architecture-review/scripts/ skills/db-architecture-review/test/db-review.test.ts
-git commit -m "feat(db-review): write schema-3d.html as a fourth output"
+git add skills/archlens-postgres/scripts/ skills/archlens-postgres/test/archlens.test.ts
+git commit -m "feat(archlens): write schema-3d.html as a fourth output"
 ```
 
 ---
@@ -1135,8 +1135,8 @@ Every one of these must hold, in a real window, with the console open:
 - [ ] **Step 8: Commit — ASK STEVE FIRST**
 
 ```bash
-git add skills/db-architecture-review/scripts/schema-3d-app.js skills/db-architecture-review/scripts/schema-3d.css
-git commit -m "feat(db-review): the 3D scene, its picking, panel and deep links"
+git add skills/archlens-postgres/scripts/schema-3d-app.js skills/archlens-postgres/scripts/schema-3d.css
+git commit -m "feat(archlens): the 3D scene, its picking, panel and deep links"
 ```
 
 ---
@@ -1144,8 +1144,8 @@ git commit -m "feat(db-review): the 3D scene, its picking, panel and deep links"
 ### Task 7: Link the explorer from the flat docs
 
 **Files:**
-- Modify: `<skill>/scripts/db-review.ts` (`writeHtml` around line 1853, `writeMarkdown` diagram section)
-- Test: `<skill>/test/db-review.test.ts`
+- Modify: `<skill>/scripts/archlens.ts` (`writeHtml` around line 1853, `writeMarkdown` diagram section)
+- Test: `<skill>/test/archlens.test.ts`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1154,7 +1154,7 @@ describe('links to the 3D explorer', () => {
   let out = '';
   before(() => {
     out = mkdtempSync(path.join(tmpdir(), 'db-links-'));
-    spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'scripts/db-review.ts',
+    spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'scripts/archlens.ts',
       'examples/sample-schema.sql', '--narratives', 'examples/narratives.json', '--out', out],
       { cwd: root, encoding: 'utf8' });
   });
@@ -1230,8 +1230,8 @@ Expected: three passing. **The two golden tests now fail** — that is correct, 
 - [ ] **Step 5: Commit — ASK STEVE FIRST**
 
 ```bash
-git add skills/db-architecture-review/scripts/db-review.ts skills/db-architecture-review/test/db-review.test.ts
-git commit -m "feat(db-review): link the 3D explorer from index.html and README.md"
+git add skills/archlens-postgres/scripts/archlens.ts skills/archlens-postgres/test/archlens.test.ts
+git commit -m "feat(archlens): link the 3D explorer from index.html and README.md"
 ```
 
 ---
@@ -1239,7 +1239,7 @@ git commit -m "feat(db-review): link the 3D explorer from index.html and README.
 ### Task 8: Ratchets across every output
 
 **Files:**
-- Modify: `<skill>/test/db-review.test.ts` (the `goldenRun` helper, around line 50)
+- Modify: `<skill>/test/archlens.test.ts` (the `goldenRun` helper, around line 50)
 
 - [ ] **Step 1: Extend the existing Mermaid ratchet**
 
@@ -1275,8 +1275,8 @@ Expected: the ratchet passes; `writes schema-3d.html identical to …` fails bec
 - [ ] **Step 3: Commit — ASK STEVE FIRST**
 
 ```bash
-git add skills/db-architecture-review/test/db-review.test.ts
-git commit -m "test(db-review): ratchet every output against loading from the web"
+git add skills/archlens-postgres/test/archlens.test.ts
+git commit -m "test(archlens): ratchet every output against loading from the web"
 ```
 
 ---
@@ -1289,7 +1289,7 @@ git commit -m "test(db-review): ratchet every output against loading from the we
 - [ ] **Step 1: Regenerate both fixtures**
 
 ```bash
-cd skills/db-architecture-review
+cd skills/archlens-postgres
 npm run review -- examples/sample-schema.sql --narratives examples/narratives.json --out examples/out
 npm run review -- test/fixtures/edge-cases.sql --narratives test/fixtures/edge-cases.narratives.json \
   --out test/fixtures/edge-cases.out
@@ -1326,7 +1326,7 @@ Expected: every test passes, including both `writes schema-3d.html identical to 
 
 ```bash
 git add examples/out test/fixtures/edge-cases.out
-git commit -m "test(db-review): regenerate both goldens with the 3D explorer"
+git commit -m "test(archlens): regenerate both goldens with the 3D explorer"
 ```
 
 ---
@@ -1338,8 +1338,8 @@ git commit -m "test(db-review): regenerate both goldens with the 3D explorer"
 - [ ] **Step 1: The whole suite, the typechecker, and both plugin manifests**
 
 ```bash
-cd skills/db-architecture-review && npm test 2>&1 | tail -5 && npm run typecheck
-cd ../.. && claude plugin validate . && claude plugin validate skills/db-architecture-review
+cd skills/archlens-postgres && npm test 2>&1 | tail -5 && npm run typecheck
+cd ../.. && claude plugin validate . && claude plugin validate skills/archlens-postgres
 ```
 
 Expected: all tests pass, `tsc` silent, both validations pass.
@@ -1347,7 +1347,7 @@ Expected: all tests pass, `tsc` silent, both validations pass.
 - [ ] **Step 2: Prove the bare run — no narratives at all**
 
 ```bash
-cd skills/db-architecture-review
+cd skills/archlens-postgres
 npm run review -- examples/sample-schema.sql --out /tmp/3d-bare --fail-on never
 grep -c 'depth-' /tmp/3d-bare/schema-3d.html
 open /tmp/3d-bare/schema-3d.html
@@ -1383,11 +1383,11 @@ narrated one. This is the case the spec calls out and the easiest one to break.
 ```bash
 cd ~/dev/git-repos/github/techno-8/db-3d-explorer
 sed -i '' 's/"version": "1.6.0"/"version": "1.7.0"/' \
-  .claude-plugin/plugin.json skills/db-architecture-review/.claude-plugin/plugin.json \
-  skills/db-architecture-review/package.json
+  .claude-plugin/plugin.json skills/archlens-postgres/.claude-plugin/plugin.json \
+  skills/archlens-postgres/package.json
 sed -i '' 's/"version": "1.6.0"/"version": "1.7.0"/g' .claude-plugin/marketplace.json
-grep -rn '"version"' .claude-plugin/*.json skills/db-architecture-review/.claude-plugin/plugin.json \
-  skills/db-architecture-review/package.json
+grep -rn '"version"' .claude-plugin/*.json skills/archlens-postgres/.claude-plugin/plugin.json \
+  skills/archlens-postgres/package.json
 ```
 
 Expected: five lines, all `1.7.0`. Users only receive an update when the plugin entry's version moves,
@@ -1396,14 +1396,14 @@ so a missed field ships nothing.
 - [ ] **Step 3: Validate again after the bump**
 
 ```bash
-claude plugin validate . && claude plugin validate skills/db-architecture-review
+claude plugin validate . && claude plugin validate skills/archlens-postgres
 ```
 
 - [ ] **Step 4: Commit — ASK STEVE FIRST**
 
 ```bash
 git add -A
-git commit -m "docs(db-review): document the 3D explorer and release 1.7.0"
+git commit -m "docs(archlens): document the 3D explorer and release 1.7.0"
 ```
 
 - [ ] **Step 5: Push and open the pull request — ASK STEVE FIRST**
