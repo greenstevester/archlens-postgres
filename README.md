@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://github.com/greenstevester/postgres-schema-gallery"><img src="https://greensill.net/postgres-schema-gallery/banner.gif" alt="A real PostgreSQL schema turning in the 3D explorer: islands per domain, every foreign key as an arc" width="800"></a>
+  <a href="https://github.com/greenstevester/postgres-schema-gallery"><img src="https://greenstevester.github.io/postgres-schema-gallery/banner.gif" alt="A real PostgreSQL schema turning in the 3D explorer: islands per domain, every foreign key as an arc" width="800"></a>
 </p>
 <p align="center">
   <a href="https://github.com/greenstevester/postgres-schema-gallery"><b>See it on real schemas: the postgres-schema-gallery</b></a><br>
