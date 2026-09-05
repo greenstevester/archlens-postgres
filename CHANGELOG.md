@@ -9,6 +9,28 @@ The version in `.claude-plugin/marketplace.json`, `.claude-plugin/plugin.json`,
 `skills/db-architecture-review/package.json` always match the tag. Users only receive an
 update when the marketplace entry's version changes.
 
+## [2.0.0](https://github.com/greenstevester/archlens-postgres/releases/tag/v2.0.0) — 2026-09-05
+
+The project is now **ArchLens Postgres**. Repository, marketplace, plugin, skill folder and script
+all carry the new name. Nothing about what the tool does changed; the major bump is for the
+install path, which did.
+
+**Changed**
+
+- Repository: `greenstevester/db-architecture-reviewer` → `greenstevester/archlens-postgres`.
+  GitHub redirects the old address for clones and links.
+- Marketplace `db-architecture-reviewer` → `archlens-postgres`; plugin and skill
+  `db-architecture-review` → `archlens-postgres`; the skill folder is `skills/archlens-postgres/`
+  and the script is `scripts/archlens.ts`. The generated `FINDINGS.md` names the script, so both
+  golden directories were regenerated; no finding appears or disappears.
+- Install is now `/plugin marketplace add greenstevester/archlens-postgres` then
+  `/plugin install archlens-postgres@archlens-postgres`.
+
+**For existing users**
+
+Remove the old marketplace and plugin, then add and install the new names. Installed copies of
+`db-architecture-review` will not receive this or later updates.
+
 ## [1.7.1](https://github.com/greenstevester/db-architecture-reviewer/releases/tag/v1.7.1) — 2026-09-03
 
 Past forty tables the whole-schema diagram at the top of `index.html` was a strip of unreadable

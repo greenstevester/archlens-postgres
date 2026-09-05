@@ -4,18 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A Claude Code plugin marketplace with one skill, `skills/db-architecture-review/`, that documents a PostgreSQL schema and reviews its design in one run. It has two halves on purpose. `scripts/db-review.ts` runs deterministic checks and writes the docs, including `schema-3d.html`, a self-contained rotatable 3D view of the whole schema. `SKILL.md` tells a Claude session how to do the judgment pass the script cannot (compare the narrative to the schema relationship by relationship, write the extension-pain scenarios) and how to feed each judgment back into `narratives.json` so it becomes a mechanical check on the next run. The design history lives in the git log and in `docs/specs/`.
+**ArchLens Postgres**: a Claude Code plugin marketplace with one skill, `skills/archlens-postgres/`, that documents a PostgreSQL schema and reviews its design in one run. (Until 2026-09-05 the repository was `db-architecture-reviewer`, the plugin `db-architecture-review` and the script `db-review.ts`; GitHub redirects the old repository address, and older changelog entries keep the old names.) It has two halves on purpose. `scripts/archlens.ts` runs deterministic checks and writes the docs, including `schema-3d.html`, a self-contained rotatable 3D view of the whole schema. `SKILL.md` tells a Claude session how to do the judgment pass the script cannot (compare the narrative to the schema relationship by relationship, write the extension-pain scenarios) and how to feed each judgment back into `narratives.json` so it becomes a mechanical check on the next run. The design history lives in the git log and in `docs/specs/`.
 
-The repo root is the public marketplace, laid out like `greenstevester/fastlane-skill`: `.claude-plugin/marketplace.json` lists the plugin with `source: ./skills/db-architecture-review`, `.claude-plugin/plugin.json` describes the marketplace, `README.md` is the front page with the `/plugin marketplace add` install steps, plus `LICENSE` (MIT) and `icon.png`. Users install with `/plugin marketplace add greenstevester/db-architecture-reviewer` then `/plugin install db-architecture-review@db-architecture-reviewer`; for local testing, `claude --plugin-dir skills/db-architecture-review` (the plugin root is the folder holding `SKILL.md`, not the marketplace root). The skill's own `README.md` inside `skills/db-architecture-review/` documents the script for people running it without Claude. Releases are tags `vX.Y.Z` with GitHub release notes. A version lives in four places and they move together: `.claude-plugin/marketplace.json` (the marketplace `version` and the plugin entry's `version`), `.claude-plugin/plugin.json`, `skills/db-architecture-review/.claude-plugin/plugin.json`, and `skills/db-architecture-review/package.json`. Users only receive an update when the plugin entry's version changes. `claude plugin validate .` and `claude plugin validate skills/db-architecture-review` must both pass before tagging.
+The repo root is the public marketplace, laid out like `greenstevester/fastlane-skill`: `.claude-plugin/marketplace.json` lists the plugin with `source: ./skills/archlens-postgres`, `.claude-plugin/plugin.json` describes the marketplace, `README.md` is the front page with the `/plugin marketplace add` install steps, plus `LICENSE` (MIT) and `icon.png`. Users install with `/plugin marketplace add greenstevester/archlens-postgres` then `/plugin install archlens-postgres@archlens-postgres`; for local testing, `claude --plugin-dir skills/archlens-postgres` (the plugin root is the folder holding `SKILL.md`, not the marketplace root). The skill's own `README.md` inside `skills/archlens-postgres/` documents the script for people running it without Claude. Releases are tags `vX.Y.Z` with GitHub release notes. A version lives in four places and they move together: `.claude-plugin/marketplace.json` (the marketplace `version` and the plugin entry's `version`), `.claude-plugin/plugin.json`, `skills/archlens-postgres/.claude-plugin/plugin.json`, and `skills/archlens-postgres/package.json`. Users only receive an update when the plugin entry's version changes. `claude plugin validate .` and `claude plugin validate skills/archlens-postgres` must both pass before tagging.
 
 ## Commands
 
 Node 24 or newer runs the `.ts` file directly; there is no build step. Install once inside the skill folder, then run:
 
 ```bash
-cd skills/db-architecture-review
+cd skills/archlens-postgres
 npm install
-node scripts/db-review.ts examples/sample-schema.sql --narratives examples/narratives.json --out examples/out
+node scripts/archlens.ts examples/sample-schema.sql --narratives examples/narratives.json --out examples/out
 ```
 
 `npm run typecheck` runs `tsc --noEmit` (TypeScript is a dev dependency used only for checking). `npm test` runs the suite described below. The two runtime dependencies are `libpg-query`, a WebAssembly build of PostgreSQL's parser, and `three` (Three.js), whose minified modules the script rewrites into one classic script and inlines into `schema-3d.html`; every version in `package.json` is pinned exactly.
@@ -24,7 +24,7 @@ Flags: `--narratives` (optional; without it only the physical checks run), `--ou
 
 ### Testing
 
-`npm test` (`node --test`, no framework) runs `test/db-review.test.ts`, 177 tests in five groups.
+`npm test` (`node --test`, no framework) runs `test/archlens.test.ts`, 177 tests in five groups.
 
 1. Golden runs. The tool is executed on `examples/sample-schema.sql` (19 tables, every flaw marked `⚠ FLAW`, expected `findings: 8 error, 18 warn, 12 info`, exit 1) and on `test/fixtures/edge-cases.sql` (every construct the sample lacks: schema-qualified table, ALTER ADD/DROP COLUMN, CHECKs of every shape, partial and expression indexes, composite keys, a foreign-key cycle, a wide table, block comments, unparsed statements, table-level CHECKs as pg_dump writes them, a one-row table guarded by CHECK (id = 1), and the `\restrict` lines pg_dump emits; expected `9 error, 8 warn, 11 info`). Every output file is compared with the committed golden directory (including `schema-3d.html`, `schema-map.svg`, `erd.svg` and `domains/*.svg`), ignoring only the `generated_at` line and the "Generated ... on" date, and two ratchet tests scan every written file: none may contain the string `mermaid`, and none may carry a `src` or `href` pointing at `http` or an import map, so every output opens from disk. A Three.js upgrade therefore regenerates both `schema-3d.html` goldens; that is the price of a self-contained file. The sample's FINDINGS.md and findings came from the Python original; its README.md, domains/*.md and index.html now carry sections the Python never wrote (whole-schema diagram, Relationships, SVG diagrams). The edge-case golden came from this tool after a diff against the Python on the same input showed only the script name and the row-value fallback differing.
 2. Model and findings. The parsed table model and the findings list are compared with `examples/out/schema.json` on their own, so a parse bug and a check bug fail different tests.
@@ -38,7 +38,7 @@ The script does not write `examples/out/REVIEW.md`. That file is the hand-writte
 
 ## How the script is put together
 
-One file, `scripts/db-review.ts`, in four sections that run in order, with the command-line entry point at the bottom. It was ported line for line from a Python original on 2026-08-31.
+One file, `scripts/archlens.ts`, in four sections that run in order, with the command-line entry point at the bottom. It was ported line for line from a Python original on 2026-08-31.
 
 **Model.** Interfaces `Column`, `ForeignKey`, `Index`, `Table`, `Finding`, built by small `newColumn()`-style factories that assign fields in declaration order. `schema.json` is `JSON.stringify` of these objects, so field order in the interface is key order in the file. Add a field to the interface and its factory and it appears in the JSON. Tables live in a `Map` so iteration order is creation order.
 

@@ -2,15 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `db-review.ts` writes one more file, `schema-3d.html`, a self-contained rotatable 3D view of the whole schema: one island per domain, every foreign key as an arc, click any table or arc for its detail.
+**Goal:** `archlens.ts` writes one more file, `schema-3d.html`, a self-contained rotatable 3D view of the whole schema: one island per domain, every foreign key as an arc, click any table or arc for its detail.
 
-**Architecture:** A new `schema3dModel()` in `db-review.ts` turns the existing table map, findings and narratives into compact JSON. A pure layout module (`scripts/schema-3d-layout.js`) places islands, cards and arcs and runs both under `node --test` and in the browser. A browser app (`scripts/schema-3d-app.js` + `scripts/schema-3d.css`) draws it with Three.js. `writeSchema3d()` inlines the JSON, a rewritten copy of the pinned Three.js modules, the layout module and the app into one HTML file. Nothing is loaded from the web.
+**Architecture:** A new `schema3dModel()` in `archlens.ts` turns the existing table map, findings and narratives into compact JSON. A pure layout module (`scripts/schema-3d-layout.js`) places islands, cards and arcs and runs both under `node --test` and in the browser. A browser app (`scripts/schema-3d-app.js` + `scripts/schema-3d.css`) draws it with Three.js. `writeSchema3d()` inlines the JSON, a rewritten copy of the pinned Three.js modules, the layout module and the app into one HTML file. Nothing is loaded from the web.
 
 **Tech Stack:** Node 24 (runs `.ts` directly), `node --test`, Three.js 0.185.1 (pinned, vendored at generation time), plain JavaScript and CSS for the page.
 
 **Spec:** `docs/specs/2026-09-02-webgl-schema-explorer.md`. Read it first.
 
-**Working directory:** every command below runs from `skills/db-architecture-review/` inside the worktree unless it says otherwise. The worktree is `.claude/worktrees/schema-3d-explorer` on branch `feat/schema-3d-explorer`.
+**Working directory:** every command below runs from `skills/archlens-postgres/` inside the worktree unless it says otherwise. The worktree is `.claude/worktrees/schema-3d-explorer` on branch `feat/schema-3d-explorer`.
 
 **Commits:** Steve's standing rule is to ask before every commit. At each commit step, show `git status --short` and the message and wait for a yes, unless he has approved this plan's commit list in advance. Conventional commits, no emoji, imperative mood, each ending with the attribution trailer the session prescribes.
 
@@ -20,14 +20,14 @@
 
 | File | Responsibility |
 |---|---|
-| `skills/db-architecture-review/scripts/db-review.ts` | Gains one section, "3D explorer", before the CLI section: the model builder, the Three.js rewrite, the writer. `writeHtml` and `writeMarkdown` gain links. `main()` calls the writer. |
-| `skills/db-architecture-review/scripts/schema-3d-layout.js` | Pure functions: dependency depth, island ring, card grid, arc lifts. No Three.js. ES module for the tests; inlined as a classic script (its `export` keywords stripped) in the page. |
-| `skills/db-architecture-review/scripts/schema-3d-app.js` | The scene, picking, focus mode, panel, search, chips, hub control, deep links, flights, level of detail. Classic script; expects the globals `THREE`, `OrbitControls`, `SCHEMA3D`, `layout`, `CARD`. |
-| `skills/db-architecture-review/scripts/schema-3d.css` | The page's styles. |
-| `skills/db-architecture-review/test/db-review.test.ts` | New describe blocks; golden lists gain `schema-3d.html`. |
-| `skills/db-architecture-review/examples/out/schema-3d.html`, `test/fixtures/edge-cases.out/schema-3d.html` | New golden files, generated. |
-| `skills/db-architecture-review/package.json`, `package-lock.json` | `three` pinned at `0.185.1`. |
-| `.gitignore`, `CLAUDE.md`, `README.md`, `skills/db-architecture-review/README.md`, `CHANGELOG.md`, the four version files | Housekeeping, docs, release. |
+| `skills/archlens-postgres/scripts/archlens.ts` | Gains one section, "3D explorer", before the CLI section: the model builder, the Three.js rewrite, the writer. `writeHtml` and `writeMarkdown` gain links. `main()` calls the writer. |
+| `skills/archlens-postgres/scripts/schema-3d-layout.js` | Pure functions: dependency depth, island ring, card grid, arc lifts. No Three.js. ES module for the tests; inlined as a classic script (its `export` keywords stripped) in the page. |
+| `skills/archlens-postgres/scripts/schema-3d-app.js` | The scene, picking, focus mode, panel, search, chips, hub control, deep links, flights, level of detail. Classic script; expects the globals `THREE`, `OrbitControls`, `SCHEMA3D`, `layout`, `CARD`. |
+| `skills/archlens-postgres/scripts/schema-3d.css` | The page's styles. |
+| `skills/archlens-postgres/test/archlens.test.ts` | New describe blocks; golden lists gain `schema-3d.html`. |
+| `skills/archlens-postgres/examples/out/schema-3d.html`, `test/fixtures/edge-cases.out/schema-3d.html` | New golden files, generated. |
+| `skills/archlens-postgres/package.json`, `package-lock.json` | `three` pinned at `0.185.1`. |
+| `.gitignore`, `CLAUDE.md`, `README.md`, `skills/archlens-postgres/README.md`, `CHANGELOG.md`, the four version files | Housekeeping, docs, release. |
 
 ---
 
@@ -62,8 +62,8 @@ git commit -m "docs: spec and plan for the 3D schema explorer"
 ### Task 2: Pin Three.js as a runtime dependency
 
 **Files:**
-- Modify: `skills/db-architecture-review/package.json`
-- Modify: `skills/db-architecture-review/package-lock.json`
+- Modify: `skills/archlens-postgres/package.json`
+- Modify: `skills/archlens-postgres/package-lock.json`
 
 - [ ] **Step 1: Install with an exact pin**
 
@@ -99,12 +99,12 @@ git commit -m "chore(deps): pin three 0.185.1 for the 3D explorer"
 ### Task 3: `bundleThree()`: the pinned modules as one classic script
 
 **Files:**
-- Modify: `skills/db-architecture-review/scripts/db-review.ts` (imports at line 24; new section before the `// CLI` banner, currently around line 1899)
-- Test: `skills/db-architecture-review/test/db-review.test.ts` (imports at lines 9-13; new block at the end of the file)
+- Modify: `skills/archlens-postgres/scripts/archlens.ts` (imports at line 24; new section before the `// CLI` banner, currently around line 1899)
+- Test: `skills/archlens-postgres/test/archlens.test.ts` (imports at lines 9-13; new block at the end of the file)
 
 - [ ] **Step 1: Write the failing test**
 
-Add to the import list from `'../scripts/db-review.ts'` in the test file: `bundleThree, threeDir`. Add `import vm from 'node:vm';` after the `node:url` import. Append at the end of the file:
+Add to the import list from `'../scripts/archlens.ts'` in the test file: `bundleThree, threeDir`. Add `import vm from 'node:vm';` after the `node:url` import. Append at the end of the file:
 
 ```ts
 describe('bundleThree', () => {
@@ -130,7 +130,7 @@ Expected: the suite fails to load because `bundleThree` is not exported (a `Synt
 
 - [ ] **Step 3: Implement**
 
-In `db-review.ts`, change the imports at the top to add `createRequire`:
+In `archlens.ts`, change the imports at the top to add `createRequire`:
 
 ```ts
 import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -223,7 +223,7 @@ Expected: no output, exit 0.
 - [ ] **Step 6: Commit (ask first)**
 
 ```bash
-git add scripts/db-review.ts test/db-review.test.ts
+git add scripts/archlens.ts test/archlens.test.ts
 git commit -m "feat(db-review): bundle the pinned Three.js modules into one classic script"
 ```
 
@@ -232,12 +232,12 @@ git commit -m "feat(db-review): bundle the pinned Three.js modules into one clas
 ### Task 4: `schema3dModel()`, `dependencyDepths()`, `hubTables()`
 
 **Files:**
-- Modify: `skills/db-architecture-review/scripts/db-review.ts` (same new section, after `bundleThree`)
-- Test: `skills/db-architecture-review/test/db-review.test.ts`
+- Modify: `skills/archlens-postgres/scripts/archlens.ts` (same new section, after `bundleThree`)
+- Test: `skills/archlens-postgres/test/archlens.test.ts`
 
 - [ ] **Step 1: Write the failing tests**
 
-Add `dependencyDepths, hubTables, schema3dModel` and `type Schema3dModel` to the import from `'../scripts/db-review.ts'`. Append:
+Add `dependencyDepths, hubTables, schema3dModel` and `type Schema3dModel` to the import from `'../scripts/archlens.ts'`. Append:
 
 ```ts
 describe('schema3dModel', () => {
@@ -326,7 +326,7 @@ Expected: load failure on the missing export, or `fail 8`.
 
 - [ ] **Step 3: Implement**
 
-Append to the "3D explorer" section of `db-review.ts`, after `bundleThree`:
+Append to the "3D explorer" section of `archlens.ts`, after `bundleThree`:
 
 ```ts
 export interface Schema3dFinding { id: string; severity: Severity; title: string; check: string }
@@ -455,14 +455,14 @@ export function schema3dModel(tables: Map<string, Table>, narratives: Narratives
 - [ ] **Step 4: Run the tests**
 
 Run: `npm test 2>&1 | grep -E "schema3dModel|pass [0-9]|fail [0-9]"`
-Expected: `pass 154`, `fail 0`. If the unclaimed test fails because the Reviewer assigns `t.domain` differently from what the test assumes, read `chkDomainCoverage` in `db-review.ts` (search for `'domain-coverage'`) and adjust the test's expectation, not the model.
+Expected: `pass 154`, `fail 0`. If the unclaimed test fails because the Reviewer assigns `t.domain` differently from what the test assumes, read `chkDomainCoverage` in `archlens.ts` (search for `'domain-coverage'`) and adjust the test's expectation, not the model.
 
 - [ ] **Step 5: Typecheck, then commit (ask first)**
 
 Run: `npm run typecheck` → exit 0.
 
 ```bash
-git add scripts/db-review.ts test/db-review.test.ts
+git add scripts/archlens.ts test/archlens.test.ts
 git commit -m "feat(db-review): build the 3D explorer model from tables, findings and narratives"
 ```
 
@@ -471,8 +471,8 @@ git commit -m "feat(db-review): build the 3D explorer model from tables, finding
 ### Task 5: The layout module
 
 **Files:**
-- Create: `skills/db-architecture-review/scripts/schema-3d-layout.js`
-- Test: `skills/db-architecture-review/test/db-review.test.ts`
+- Create: `skills/archlens-postgres/scripts/schema-3d-layout.js`
+- Test: `skills/archlens-postgres/test/archlens.test.ts`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -578,7 +578,7 @@ Expected: `Cannot find module '.../scripts/schema-3d-layout.js'`.
 
 - [ ] **Step 3: Create the module**
 
-`skills/db-architecture-review/scripts/schema-3d-layout.js`:
+`skills/archlens-postgres/scripts/schema-3d-layout.js`:
 
 ```js
 // schema-3d-layout.js — where every island, card and arc of schema-3d.html goes.
@@ -702,7 +702,7 @@ export function layout(model: { domains: { key: string; title: string; color: st
 Run: `npm run typecheck` → exit 0.
 
 ```bash
-git add scripts/schema-3d-layout.js scripts/schema-3d-layout.d.ts test/db-review.test.ts
+git add scripts/schema-3d-layout.js scripts/schema-3d-layout.d.ts test/archlens.test.ts
 git commit -m "feat(db-review): lay out domain islands, cards and arcs for the 3D explorer"
 ```
 
@@ -711,14 +711,14 @@ git commit -m "feat(db-review): lay out domain islands, cards and arcs for the 3
 ### Task 6: The page: CSS, app, `writeSchema3d()`, wired into `main()`
 
 **Files:**
-- Create: `skills/db-architecture-review/scripts/schema-3d.css`
-- Create: `skills/db-architecture-review/scripts/schema-3d-app.js`
-- Modify: `skills/db-architecture-review/scripts/db-review.ts` (writer in the "3D explorer" section; `main()`; the header comment's output list)
-- Test: `skills/db-architecture-review/test/db-review.test.ts`
+- Create: `skills/archlens-postgres/scripts/schema-3d.css`
+- Create: `skills/archlens-postgres/scripts/schema-3d-app.js`
+- Modify: `skills/archlens-postgres/scripts/archlens.ts` (writer in the "3D explorer" section; `main()`; the header comment's output list)
+- Test: `skills/archlens-postgres/test/archlens.test.ts`
 
 - [ ] **Step 1: Write the failing tests**
 
-Add `writeSchema3d` to the import from `'../scripts/db-review.ts'`. Append:
+Add `writeSchema3d` to the import from `'../scripts/archlens.ts'`. Append:
 
 ```ts
 describe('schema-3d.html', () => {
@@ -799,7 +799,7 @@ Expected: load failure on the missing export `writeSchema3d`.
 
 - [ ] **Step 3: Create the stylesheet**
 
-`skills/db-architecture-review/scripts/schema-3d.css`:
+`skills/archlens-postgres/scripts/schema-3d.css`:
 
 ```css
 /* schema-3d.css — the explorer is one dark scene, so no light theme. */
@@ -858,7 +858,7 @@ button:focus-visible, #q:focus-visible { outline: 2px solid #8fb8ea; outline-off
 
 - [ ] **Step 4: Create the app**
 
-`skills/db-architecture-review/scripts/schema-3d-app.js`:
+`skills/archlens-postgres/scripts/schema-3d-app.js`:
 
 ```js
 // schema-3d-app.js — the explorer. Runs after THREE, OrbitControls, SCHEMA3D, CARD and layout()
@@ -1269,7 +1269,7 @@ button:focus-visible, #q:focus-visible { outline: 2px solid #8fb8ea; outline-off
 })();
 ```
 
-- [ ] **Step 5: The writer, in `db-review.ts`**
+- [ ] **Step 5: The writer, in `archlens.ts`**
 
 Append to the "3D explorer" section, after `schema3dModel`:
 
@@ -1348,7 +1348,7 @@ Expected: `OK`.
 - [ ] **Step 9: Commit (ask first)**
 
 ```bash
-git add scripts/schema-3d.css scripts/schema-3d-app.js scripts/db-review.ts test/db-review.test.ts
+git add scripts/schema-3d.css scripts/schema-3d-app.js scripts/archlens.ts test/archlens.test.ts
 git commit -m "feat(db-review): write schema-3d.html, a self-contained rotatable view of the schema"
 ```
 
@@ -1357,9 +1357,9 @@ git commit -m "feat(db-review): write schema-3d.html, a self-contained rotatable
 ### Task 7: Links from `index.html` and `README.md`, goldens regenerated
 
 **Files:**
-- Modify: `skills/db-architecture-review/scripts/db-review.ts` (`writeHtml` Schema section and `tableHtml` header; `writeMarkdown` Diagram section)
-- Modify: `skills/db-architecture-review/test/db-review.test.ts` (golden file lists; new assertions)
-- Regenerate: `skills/db-architecture-review/examples/out/**`, `skills/db-architecture-review/test/fixtures/edge-cases.out/**`
+- Modify: `skills/archlens-postgres/scripts/archlens.ts` (`writeHtml` Schema section and `tableHtml` header; `writeMarkdown` Diagram section)
+- Modify: `skills/archlens-postgres/test/archlens.test.ts` (golden file lists; new assertions)
+- Regenerate: `skills/archlens-postgres/examples/out/**`, `skills/archlens-postgres/test/fixtures/edge-cases.out/**`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1424,7 +1424,7 @@ Expected: `pass 168`, `fail 0`.
 - [ ] **Step 6: Commit (ask first)**
 
 ```bash
-git add scripts/db-review.ts test/db-review.test.ts examples/out test/fixtures/edge-cases.out
+git add scripts/archlens.ts test/archlens.test.ts examples/out test/fixtures/edge-cases.out
 git commit -m "feat(db-review): link the 3D explorer from index.html and README.md; goldens"
 ```
 
@@ -1433,7 +1433,7 @@ git commit -m "feat(db-review): link the 3D explorer from index.html and README.
 ### Task 8: Ratchets: nothing from the web, browser files parse
 
 **Files:**
-- Test: `skills/db-architecture-review/test/db-review.test.ts`
+- Test: `skills/archlens-postgres/test/archlens.test.ts`
 
 - [ ] **Step 1: Add the ratchet to `goldenRun`**
 
@@ -1476,7 +1476,7 @@ Expected: `pass 172`, `fail 0`. Should the web ratchet fail on an existing file,
 - [ ] **Step 4: Commit (ask first)**
 
 ```bash
-git add test/db-review.test.ts
+git add test/archlens.test.ts
 git commit -m "test(db-review): ratchet against web loads and unparseable browser files"
 ```
 
@@ -1544,14 +1544,14 @@ Raise the window (the `osascript` lines from `browser-watch-mode`), then ask him
 **Files:**
 - Modify: `CLAUDE.md` (repo root)
 - Modify: `README.md` (repo root)
-- Modify: `skills/db-architecture-review/README.md`
+- Modify: `skills/archlens-postgres/README.md`
 - Modify: `CHANGELOG.md`
 
 Run the `no-ai-slop` skill over each paragraph before writing it, per Steve's standing rule.
 
 - [ ] **Step 1: `CLAUDE.md`**
 
-In "What this repo is", change the first sentence's description of the script to: `` `scripts/db-review.ts` runs deterministic checks and writes the docs, including `schema-3d.html`, a self-contained rotatable 3D view of the whole schema. ``
+In "What this repo is", change the first sentence's description of the script to: `` `scripts/archlens.ts` runs deterministic checks and writes the docs, including `schema-3d.html`, a self-contained rotatable 3D view of the whole schema. ``
 
 In "Commands", the sentence `The one runtime dependency is libpg-query, ...` becomes: `` The two runtime dependencies are `libpg-query`, a WebAssembly build of PostgreSQL's parser, and `three` (Three.js), whose minified modules the script rewrites into one classic script and inlines into `schema-3d.html`; every version in `package.json` is pinned exactly. ``
 
@@ -1590,7 +1590,7 @@ npm install                 # two dependencies, both pinned: libpg-query (the re
 Insert above the 1.6.0 entry:
 
 ```
-## [1.7.0](https://github.com/greenstevester/db-architecture-reviewer/releases/tag/v1.7.0) — 2026-09-02
+## [1.7.0](https://github.com/greenstevester/archlens-postgres/releases/tag/v1.7.0) — 2026-09-02
 
 A schema past forty tables was unreadable in the flat diagram. Every run now also writes
 `schema-3d.html`, a self-contained page you rotate: one island per domain, the hub domain in the
@@ -1615,10 +1615,10 @@ No finding appears or disappears — counts and severities are identical on both
 
 - [ ] **Step 5: Check and commit (ask first)**
 
-Run from the repo root: `grep -n "schema-3d" CLAUDE.md README.md skills/db-architecture-review/README.md CHANGELOG.md | wc -l` → at least 8.
+Run from the repo root: `grep -n "schema-3d" CLAUDE.md README.md skills/archlens-postgres/README.md CHANGELOG.md | wc -l` → at least 8.
 
 ```bash
-git add CLAUDE.md README.md skills/db-architecture-review/README.md CHANGELOG.md
+git add CLAUDE.md README.md skills/archlens-postgres/README.md CHANGELOG.md
 git commit -m "docs: describe schema-3d.html, its tests and the vendored Three.js"
 ```
 
@@ -1627,15 +1627,15 @@ git commit -m "docs: describe schema-3d.html, its tests and the vendored Three.j
 ### Task 11: Version 1.7.0 and plugin validation
 
 **Files:**
-- Modify: `.claude-plugin/marketplace.json` (both `version` fields), `.claude-plugin/plugin.json`, `skills/db-architecture-review/.claude-plugin/plugin.json`, `skills/db-architecture-review/package.json`, `skills/db-architecture-review/package-lock.json`
+- Modify: `.claude-plugin/marketplace.json` (both `version` fields), `.claude-plugin/plugin.json`, `skills/archlens-postgres/.claude-plugin/plugin.json`, `skills/archlens-postgres/package.json`, `skills/archlens-postgres/package-lock.json`
 
 - [ ] **Step 1: Bump**
 
 From the repo root of the worktree:
 
 ```bash
-sed -i '' 's/"version": "1.6.0"/"version": "1.7.0"/g' .claude-plugin/marketplace.json .claude-plugin/plugin.json skills/db-architecture-review/.claude-plugin/plugin.json skills/db-architecture-review/package.json
-grep -n '"version"' .claude-plugin/marketplace.json .claude-plugin/plugin.json skills/db-architecture-review/.claude-plugin/plugin.json skills/db-architecture-review/package.json
+sed -i '' 's/"version": "1.6.0"/"version": "1.7.0"/g' .claude-plugin/marketplace.json .claude-plugin/plugin.json skills/archlens-postgres/.claude-plugin/plugin.json skills/archlens-postgres/package.json
+grep -n '"version"' .claude-plugin/marketplace.json .claude-plugin/plugin.json skills/archlens-postgres/.claude-plugin/plugin.json skills/archlens-postgres/package.json
 ```
 
 Expected: five lines, all `1.7.0`.
@@ -1643,7 +1643,7 @@ Expected: five lines, all `1.7.0`.
 - [ ] **Step 2: Sync the lockfile**
 
 ```bash
-cd skills/db-architecture-review && npm install --no-audit --no-fund && git diff --stat package-lock.json && cd ../..
+cd skills/archlens-postgres && npm install --no-audit --no-fund && git diff --stat package-lock.json && cd ../..
 ```
 
 Expected: the lockfile's own `version` lines move to `1.7.0`, nothing else.
@@ -1651,8 +1651,8 @@ Expected: the lockfile's own `version` lines move to `1.7.0`, nothing else.
 - [ ] **Step 3: Validate and test**
 
 ```bash
-claude plugin validate . && claude plugin validate skills/db-architecture-review
-cd skills/db-architecture-review && npm test 2>&1 | tail -4 && npm run typecheck && cd ../..
+claude plugin validate . && claude plugin validate skills/archlens-postgres
+cd skills/archlens-postgres && npm test 2>&1 | tail -4 && npm run typecheck && cd ../..
 ```
 
 Expected: both validations pass; `fail 0`; typecheck silent.
@@ -1660,7 +1660,7 @@ Expected: both validations pass; `fail 0`; typecheck silent.
 - [ ] **Step 4: Commit (ask first)**
 
 ```bash
-git add .claude-plugin/marketplace.json .claude-plugin/plugin.json skills/db-architecture-review/.claude-plugin/plugin.json skills/db-architecture-review/package.json skills/db-architecture-review/package-lock.json
+git add .claude-plugin/marketplace.json .claude-plugin/plugin.json skills/archlens-postgres/.claude-plugin/plugin.json skills/archlens-postgres/package.json skills/archlens-postgres/package-lock.json
 git commit -m "chore(release): v1.7.0"
 ```
 

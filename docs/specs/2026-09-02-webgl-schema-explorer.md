@@ -21,7 +21,7 @@ Each was chosen against live prototypes of a made-up 120-table, 11-domain schema
 
 ## Behaviour changes
 
-1. **A new output file, `schema-3d.html`,** written on every run, with or without narratives, by a fourth writer in `db-review.ts`.
+1. **A new output file, `schema-3d.html`,** written on every run, with or without narratives, by a fourth writer in `archlens.ts`.
 2. **`index.html` links to it.** The Schema section gains an "Open the 3D explorer" link above the SVG, and every table section gains a "View in 3D" link to `schema-3d.html#t=<table>`, which opens the explorer focused on that table.
 3. **The generated `README.md` links to it** from its Diagram section.
 4. **A second runtime dependency.** `three` pinned at exactly `0.185.1` in `package.json`, beside `libpg-query`.
@@ -120,7 +120,7 @@ out/
 
 ## Tests (written first, each watched failing)
 
-Added to `test/db-review.test.ts` in the existing four groups.
+Added to `test/archlens.test.ts` in the existing four groups.
 
 1. **Golden runs.** Both fixtures write `schema-3d.html`; the whole file is compared with the committed golden, ignoring only the generated-on line, exactly as `index.html` is today. A Three.js upgrade therefore regenerates both goldens, and that diff is accepted as the price of a self-contained file. Bare run: the file exists and its domains are `depth-0`, `depth-1`, ...
 2. **Model.** `schema3dModel()` on the sample: one entry per table and per foreign key; every foreign key carries every field the panel reads; `fk-index` findings land on their key and `primary-key` findings on their table; `hubs` is exactly `['tenant']` on the sample (10 of 18 other tables) and `['org']` on the edge-case fixture (6 of 9).
@@ -140,7 +140,7 @@ Before the pull request, both fixture outputs are opened in a headed browser: ze
 
 - A worktree off `main` at `28217a2`, branch `feat/schema-3d-explorer`.
 - Add `.superpowers/` to `.gitignore` in the same branch; the brainstorm mockups live there.
-- Version 1.7.0 in the four places that move together: `.claude-plugin/marketplace.json` (both fields), `.claude-plugin/plugin.json`, `skills/db-architecture-review/.claude-plugin/plugin.json`, `skills/db-architecture-review/package.json`. `claude plugin validate .` and `claude plugin validate skills/db-architecture-review` must pass.
+- Version 1.7.0 in the four places that move together: `.claude-plugin/marketplace.json` (both fields), `.claude-plugin/plugin.json`, `skills/archlens-postgres/.claude-plugin/plugin.json`, `skills/archlens-postgres/package.json`. `claude plugin validate .` and `claude plugin validate skills/archlens-postgres` must pass.
 - Commits are atomic and asked for one at a time, per the standing rule.
 
 ## Defaults standing unless Steve overrides

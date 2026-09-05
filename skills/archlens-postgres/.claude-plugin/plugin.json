@@ -1,12 +1,12 @@
 {
-  "name": "db-architecture-review",
-  "version": "1.7.1",
+  "name": "archlens-postgres",
+  "version": "2.0.0",
   "description": "Document a PostgreSQL schema and review its logical and physical design in one run",
   "author": {
     "name": "greenstevester"
   },
-  "homepage": "https://github.com/greenstevester/db-architecture-reviewer/blob/main/skills/db-architecture-review/SKILL.md",
-  "repository": "https://github.com/greenstevester/db-architecture-reviewer",
+  "homepage": "https://github.com/greenstevester/archlens-postgres/blob/main/skills/archlens-postgres/SKILL.md",
+  "repository": "https://github.com/greenstevester/archlens-postgres",
   "license": "MIT",
   "keywords": ["postgresql", "schema", "database", "review", "documentation", "data-model"]
 }

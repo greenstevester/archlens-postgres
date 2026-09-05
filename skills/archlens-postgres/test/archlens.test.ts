@@ -11,7 +11,7 @@ import {
   Reviewer, bundleThree, dependencyDepths, describeRelationship, escapeHtml, hubTables, modelToJson,
   parseSchema, relationships, schema3dModel, svgErd, threeDir, writeHtml, writeMarkdown, writeSchema3d,
   type Finding, type Schema3dModel, type Table,
-} from '../scripts/db-review.ts';
+} from '../scripts/archlens.ts';
 import { CARD, ISLAND_GAP, depths, layout } from '../scripts/schema-3d-layout.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -32,10 +32,10 @@ function goldenRun(name: string, schema: string, narratives: string, golden: str
     let run: ReturnType<typeof spawnSync>;
 
     before(() => {
-      out = mkdtempSync(path.join(tmpdir(), 'db-review-'));
+      out = mkdtempSync(path.join(tmpdir(), 'archlens-'));
       run = spawnSync(
         process.execPath,
-        ['--disable-warning=ExperimentalWarning', 'scripts/db-review.ts', schema, '--narratives', narratives, '--out', out],
+        ['--disable-warning=ExperimentalWarning', 'scripts/archlens.ts', schema, '--narratives', narratives, '--out', out],
         { cwd: root, encoding: 'utf8' },
       );
     });
@@ -443,7 +443,7 @@ describe('informer output', () => {
   before(async () => {
     ({ tables } = await parseSchema(ddl, 'inline'));
     const findings = new Reviewer(tables, narratives).run();
-    out = mkdtempSync(path.join(tmpdir(), 'db-review-informer-'));
+    out = mkdtempSync(path.join(tmpdir(), 'archlens-informer-'));
     writeMarkdown(out, tables, narratives, findings, stats);
     writeHtml(out, tables, narratives, findings, stats, 'inline');
   });
@@ -482,7 +482,7 @@ describe('informer output', () => {
 
   it('bare run (no narratives): index.html still carries the schema map with one block per table', async () => {
     const { tables: bare } = await parseSchema(ddl, 'inline');
-    const dir = mkdtempSync(path.join(tmpdir(), 'db-review-bare-'));
+    const dir = mkdtempSync(path.join(tmpdir(), 'archlens-bare-'));
     try {
       writeMarkdown(dir, bare, {}, [], stats);
       writeHtml(dir, bare, {}, [], stats, 'inline');
@@ -649,7 +649,7 @@ describe('svgErd edge labels', () => {
 describe('stale domain pages', () => {
   it('leaves existing domain files alone when the run has no domains at all', async () => {
     const { tables } = await parseSchema('CREATE TABLE tenants (id UUID PRIMARY KEY);', 'inline');
-    const dir = mkdtempSync(path.join(tmpdir(), 'db-review-bare-keep-'));
+    const dir = mkdtempSync(path.join(tmpdir(), 'archlens-bare-keep-'));
     try {
       mkdirSync(path.join(dir, 'domains'), { recursive: true });
       writeFileSync(path.join(dir, 'domains', 'tenant.md'), 'committed doc');
@@ -664,7 +664,7 @@ describe('stale domain pages', () => {
 
   it('removes domains .md and .svg files for domains no longer in narratives', async () => {
     const { tables } = await parseSchema('CREATE TABLE tenants (id UUID PRIMARY KEY);', 'inline');
-    const dir = mkdtempSync(path.join(tmpdir(), 'db-review-stale-'));
+    const dir = mkdtempSync(path.join(tmpdir(), 'archlens-stale-'));
     try {
       mkdirSync(path.join(dir, 'domains'), { recursive: true });
       writeFileSync(path.join(dir, 'domains', 'old.md'), 'stale');
@@ -1176,7 +1176,7 @@ describe('schema-3d.html', () => {
   before(async () => {
     const { tables } = await parseSchema(ddl, 'inline');
     const findings = new Reviewer(tables, narratives).run();
-    out = mkdtempSync(path.join(tmpdir(), 'db-review-3d-'));
+    out = mkdtempSync(path.join(tmpdir(), 'archlens-3d-'));
     writeSchema3d(out, schema3dModel(tables, narratives, findings, 'inline'));
     html = readFileSync(path.join(out, 'schema-3d.html'), 'utf8');
   });
@@ -1221,7 +1221,7 @@ describe('schema-3d.html', () => {
   });
 
   it('is deterministic apart from the date line', () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'db-review-3d-again-'));
+    const dir = mkdtempSync(path.join(tmpdir(), 'archlens-3d-again-'));
     try {
       writeSchema3d(dir, JSON.parse(html.match(/window\.SCHEMA3D=(\{.*?\});<\/script>/)![1].replace(/\\u003c/g, '<')));
       assert.equal(stable(readFileSync(path.join(dir, 'schema-3d.html'), 'utf8')), stable(html));

@@ -1,4 +1,4 @@
--- One CHECK or DEFAULT per column. test/db-review.test.ts renders each and compares it with
+-- One CHECK or DEFAULT per column. test/archlens.test.ts renders each and compares it with
 -- what pglast (the Python original's printer) produced for this same file.
 CREATE TABLE t (
   a INT, b INT, c INT, d TEXT, tags TEXT[],

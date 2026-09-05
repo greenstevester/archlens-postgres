@@ -1,6 +1,6 @@
 # Design review findings
 
-Deterministic checks run by `db-review.ts`. Each finding states what the schema allows today, why it hurts, and the smallest change that fixes it. The LLM review pass (see SKILL.md) builds on top of these.
+Deterministic checks run by `archlens.ts`. Each finding states what the schema allows today, why it hurts, and the smallest change that fixes it. The LLM review pass (see SKILL.md) builds on top of these.
 
 ## Errors (8)
 

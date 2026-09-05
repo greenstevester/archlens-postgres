@@ -12,8 +12,8 @@ Today the bare run (no narratives) produces an `index.html` with zero diagrams, 
 ## Behaviour changes
 
 1. **The HTML always carries a whole-schema diagram.** `writeHtml` gains a "Schema" section before the domain sections: one inline SVG from the existing `svgErd()` covering every table, in the same scrollable wrapper the domain diagrams use. Present in every run, including a bare run with no narratives. Per-domain SVG sections stay as they are.
-2. **Markdown diagrams become SVG image files.** `writeMarkdown` writes `erd.svg` (whole schema) into the output folder and `domains/<key>.svg` per domain, using the same `svgErd()`. `README.md`'s `## Diagram` section becomes `![Entity-relationship diagram](erd.svg)` (replacing the Mermaid fence at `db-review.ts:1453`); each domain page embeds `![<title> diagram](<key>.svg)` (replacing the fence at `db-review.ts:1462-1463`). GitHub renders these as pictures; the files are plain images, nothing executes.
-3. **`mermaidErd()` (`db-review.ts:1200`) is deleted.** This change makes it dead code; removing it is in scope.
+2. **Markdown diagrams become SVG image files.** `writeMarkdown` writes `erd.svg` (whole schema) into the output folder and `domains/<key>.svg` per domain, using the same `svgErd()`. `README.md`'s `## Diagram` section becomes `![Entity-relationship diagram](erd.svg)` (replacing the Mermaid fence at `archlens.ts:1453`); each domain page embeds `![<title> diagram](<key>.svg)` (replacing the fence at `archlens.ts:1462-1463`). GitHub renders these as pictures; the files are plain images, nothing executes.
+3. **`mermaidErd()` (`archlens.ts:1200`) is deleted.** This change makes it dead code; removing it is in scope.
 
 ## What does not change
 
@@ -52,8 +52,8 @@ Goldens: regenerated for both fixtures with `npm run review -- <schema> --narrat
 
 ## Sequencing and release
 
-- Build on a worktree off `main`. Rebase onto `fix/relationship-columns` once that branch lands — it is now committed (551d402 feature, 43ae076 release chore, claiming v1.2.0) but not yet pushed or merged. Both changes touch the domain-section emit near `db-review.ts:1679` (that branch adds `<h3 class="rels-h">Relationships</h3>` there, above the no-foreign-keys fallback too) and the relationship area, so order matters.
-- Version bump in the four usual places, moving together: `.claude-plugin/marketplace.json` (both fields), `.claude-plugin/plugin.json`, `skills/db-architecture-review/.claude-plugin/plugin.json`, `skills/db-architecture-review/package.json`. `claude plugin validate .` and `claude plugin validate skills/db-architecture-review` must pass.
+- Build on a worktree off `main`. Rebase onto `fix/relationship-columns` once that branch lands — it is now committed (551d402 feature, 43ae076 release chore, claiming v1.2.0) but not yet pushed or merged. Both changes touch the domain-section emit near `archlens.ts:1679` (that branch adds `<h3 class="rels-h">Relationships</h3>` there, above the no-foreign-keys fallback too) and the relationship area, so order matters.
+- Version bump in the four usual places, moving together: `.claude-plugin/marketplace.json` (both fields), `.claude-plugin/plugin.json`, `skills/archlens-postgres/.claude-plugin/plugin.json`, `skills/archlens-postgres/package.json`. `claude plugin validate .` and `claude plugin validate skills/archlens-postgres` must pass.
 
 ## Decisions (defaults standing unless Steve overrides)
 
