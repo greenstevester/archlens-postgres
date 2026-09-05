@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * db-review.ts — document a PostgreSQL schema AND review its design in one pass.
+ * archlens.ts — document a PostgreSQL schema AND review its design in one pass.
  *
- *     node scripts/db-review.ts schema.sql --narratives narratives.json --out docs/database
+ *     node scripts/archlens.ts schema.sql --narratives narratives.json --out docs/database
  *
  * Reads DDL with the real PostgreSQL parser (libpg-query, a WebAssembly build of
  * libpg_query), builds a model (tables, columns, keys, foreign keys, indexes, RLS,
@@ -1684,7 +1684,7 @@ export function writeMarkdown(outdir: string, tables: Map<string, Table>, narrat
   }
 
   const fl: string[] = ['# Design review findings', '',
-    'Deterministic checks run by `db-review.ts`. Each finding states what the schema allows today, why it '
+    'Deterministic checks run by `archlens.ts`. Each finding states what the schema allows today, why it '
     + 'hurts, and the smallest change that fixes it. The LLM review pass (see SKILL.md) builds on top of these.', ''];
   for (const sev of SEVERITIES) {
     const group = findings.filter((f) => f.severity === sev);
@@ -2199,7 +2199,7 @@ export function writeSchema3d(outdir: string, model: Schema3dModel, three: strin
 // CLI
 // ----------------------------------------------------------------------------
 
-const USAGE = `usage: db-review.ts [-h] [--narratives NARRATIVES] [--out OUT] [--fail-on {error,warn,info,never}] [--quiet] schema
+const USAGE = `usage: archlens.ts [-h] [--narratives NARRATIVES] [--out OUT] [--fail-on {error,warn,info,never}] [--quiet] schema
 
 positional arguments:
   schema                schema.sql (a single DDL file; concatenate migrations first if needed)
@@ -2240,7 +2240,7 @@ export async function main(argv: string[]): Promise<number> {
       },
     });
   } catch (err) {
-    process.stderr.write(`${USAGE}\ndb-review.ts: error: ${(err as Error).message}\n`);
+    process.stderr.write(`${USAGE}\narchlens.ts: error: ${(err as Error).message}\n`);
     return 2;
   }
   const { values, positionals } = parsed;
@@ -2249,12 +2249,12 @@ export async function main(argv: string[]): Promise<number> {
     return 0;
   }
   if (positionals.length !== 1) {
-    process.stderr.write(`${USAGE}\ndb-review.ts: error: expected exactly one schema file\n`);
+    process.stderr.write(`${USAGE}\narchlens.ts: error: expected exactly one schema file\n`);
     return 2;
   }
   const failOn = values['fail-on'] as string;
   if (!(FAIL_ON as readonly string[]).includes(failOn)) {
-    process.stderr.write(`${USAGE}\ndb-review.ts: error: argument --fail-on: invalid choice: '${failOn}' (choose from ${FAIL_ON.join(', ')})\n`);
+    process.stderr.write(`${USAGE}\narchlens.ts: error: argument --fail-on: invalid choice: '${failOn}' (choose from ${FAIL_ON.join(', ')})\n`);
     return 2;
   }
   const schemaPath = positionals[0];
@@ -2266,7 +2266,7 @@ export async function main(argv: string[]): Promise<number> {
     sqlText = readText(schemaPath, 'schema');
     narratives = values.narratives ? JSON.parse(readText(values.narratives as string, 'narratives')) : {};
   } catch (err) {
-    process.stderr.write(`db-review.ts: error: ${(err as Error).message}\n`);
+    process.stderr.write(`archlens.ts: error: ${(err as Error).message}\n`);
     return 2;
   }
 

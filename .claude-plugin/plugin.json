@@ -1,10 +1,10 @@
 {
-  "name": "db-architecture-reviewer",
-  "version": "1.7.1",
+  "name": "archlens-postgres",
+  "version": "2.0.0",
   "description": "Claude Code skill that documents a PostgreSQL schema and reviews its design in one run",
   "author": {
     "name": "greenstevester"
   },
-  "repository": "https://github.com/greenstevester/db-architecture-reviewer",
+  "repository": "https://github.com/greenstevester/archlens-postgres",
   "license": "MIT"
 }

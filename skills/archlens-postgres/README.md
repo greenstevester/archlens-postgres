@@ -1,4 +1,4 @@
-# db-architecture-review
+# ArchLens Postgres
 
 Document a PostgreSQL schema **and** review its design in one run. Docs and
 review come from the same model, so a finding always points at a table you
@@ -6,7 +6,7 @@ can click through to, and the docs show every flaw next to the table it
 belongs to.
 
 ```
-node scripts/db-review.ts schema.sql --narratives narratives.json --out docs/database
+node scripts/archlens.ts schema.sql --narratives narratives.json --out docs/database
 ```
 
 produces
@@ -134,7 +134,7 @@ and usually `fix_sql`.
   with:
     node-version: 24
 - run: npm ci
-- run: node scripts/db-review.ts db/schema.sql --narratives db/narratives.json --out docs/database --fail-on error
+- run: node scripts/archlens.ts db/schema.sql --narratives db/narratives.json --out docs/database --fail-on error
 ```
 
 `npm ci` runs where `package.json` lives; add `working-directory:` if the skill sits under `.claude/skills/`. Commit `docs/database/` so the review lives next to the schema.
@@ -145,8 +145,8 @@ This folder is a Claude Code plugin. Install it from the marketplace at the
 repo root:
 
 ```
-/plugin marketplace add greenstevester/db-architecture-reviewer
-/plugin install db-architecture-review@db-architecture-reviewer
+/plugin marketplace add greenstevester/archlens-postgres
+/plugin install archlens-postgres@archlens-postgres
 ```
 
 or, for local development, `claude --plugin-dir /path/to/this/folder`. Then
@@ -158,7 +158,7 @@ by relationship and writing the extension-pain scenarios — into
 ## Try it
 
 ```
-node scripts/db-review.ts examples/sample-schema.sql --narratives examples/narratives.json --out examples/out
+node scripts/archlens.ts examples/sample-schema.sql --narratives examples/narratives.json --out examples/out
 open examples/out/index.html
 ```
 

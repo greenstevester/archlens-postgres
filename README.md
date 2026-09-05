@@ -6,7 +6,7 @@
   <sub>Temporal, Miniflux, Listmonk, Matrix Synapse, Sourcegraph, Cal.com and GitLab (1,429 tables), each reviewed, each with a 3D explorer you can rotate.</sub>
 </p>
 
-# Database Architecture Review for Claude Code
+# ArchLens Postgres for Claude Code
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-Skill-purple.svg)](https://claude.ai/code)
@@ -50,16 +50,16 @@ The review has two halves, kept apart on purpose.
 **1. Register the marketplace:**
 
 ```
-/plugin marketplace add greenstevester/db-architecture-reviewer
+/plugin marketplace add greenstevester/archlens-postgres
 ```
 
 **2. Install the skill** (adding the marketplace alone doesn't install anything):
 
 ```
-/plugin install db-architecture-review@db-architecture-reviewer
+/plugin install archlens-postgres@archlens-postgres
 ```
 
-Or run `/plugin`, open the `db-architecture-reviewer` marketplace, and enable it from the menu. The one dependency, a WebAssembly build of PostgreSQL's parser, installs with the plugin; no compiler needed.
+Or run `/plugin`, open the `archlens-postgres` marketplace, and enable it from the menu. The one dependency, a WebAssembly build of PostgreSQL's parser, installs with the plugin; no compiler needed.
 
 Restart Claude Code.
 
@@ -138,17 +138,17 @@ Every finding carries `detail` (what the schema allows and why it hurts), `sugge
 The script stands on its own, in a build pipeline or by hand:
 
 ```bash
-git clone https://github.com/greenstevester/db-architecture-reviewer
-cd db-architecture-reviewer/skills/db-architecture-review && npm ci
-node scripts/db-review.ts /path/to/schema.sql --narratives /path/to/narratives.json --out docs/database
+git clone https://github.com/greenstevester/archlens-postgres
+cd archlens-postgres/skills/archlens-postgres && npm ci
+node scripts/archlens.ts /path/to/schema.sql --narratives /path/to/narratives.json --out docs/database
 ```
 
-Exit code 1 when an error-severity finding exists (`--fail-on warn|info|never` to tune). The [skill's own README](skills/db-architecture-review/README.md) covers the two input files and a GitHub Actions snippet.
+Exit code 1 when an error-severity finding exists (`--fail-on warn|info|never` to tune). The [skill's own README](skills/archlens-postgres/README.md) covers the two input files and a GitHub Actions snippet.
 
 ## Update
 
 ```
-/plugin marketplace update db-architecture-reviewer
+/plugin marketplace update archlens-postgres
 ```
 
 ## Troubleshooting
@@ -163,12 +163,12 @@ Exit code 1 when an error-severity finding exists (`--fail-on warn|info|never` t
 ## Local development
 
 ```bash
-claude --plugin-dir /path/to/db-architecture-reviewer/skills/db-architecture-review
-cd skills/db-architecture-review && npm test && npm run typecheck
+claude --plugin-dir /path/to/archlens-postgres/skills/archlens-postgres
+cd skills/archlens-postgres && npm test && npm run typecheck
 ```
 
 The design history — what was tried, what was rejected, and why the tool is two halves with a JSON file in the middle — lives in the repo's git log and in `docs/specs/`. What changed in each release is in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 
-MIT - [github.com/greenstevester/db-architecture-reviewer](https://github.com/greenstevester/db-architecture-reviewer)
+MIT - [github.com/greenstevester/archlens-postgres](https://github.com/greenstevester/archlens-postgres)
