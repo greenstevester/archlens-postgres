@@ -321,6 +321,13 @@ describe('pg_dump preamble', () => {
 
 // The informer half: diagrams that show every relationship, and a relationship list that says what
 // the schema enforces and why the narrative says it exists.
+//
+// GAP: widget.parent_id is the only self-referencing key in the suite, and it lives here in inline
+// DDL. Neither committed fixture has one — the edge-case file's "foreign-key cycle" is
+// site -> region -> site, two tables, not one pointing at itself. So the self-reference branches in
+// svgErd() and in the 3D layout are never exercised by a golden run, only by hand-built input here
+// and in the schema-3d.html group. Adding a self-reference to a fixture would close that, at the
+// price of moving the finding counts both goldens pin, so it was left open on purpose.
 describe('informer', () => {
   const ddl = `
     CREATE TABLE org (id BIGINT PRIMARY KEY, name TEXT NOT NULL);
@@ -1157,6 +1164,8 @@ describe('schema-3d layout', () => {
   });
 });
 
+// note.parent_id is the second half of the self-reference gap noted above the informer group: the
+// only 3D self-reference arc under test, and it is hand-built here rather than read from a fixture.
 describe('schema-3d.html', () => {
   const ddl = `
     -- The organisation. </script><b>not html</b>

@@ -1918,7 +1918,10 @@ export function threeDir(): string {
   return path.resolve(path.dirname(createRequire(import.meta.url).resolve('three')), '..');
 }
 
-/** `export{a as Name,b}` at the end of a module becomes `return{Name:a,b:b}`. */
+/** `export{a as Name,b}` at the end of a module becomes `return{Name:a,b:b}`.
+ *  `as` runs local-to-public here and public-to-local in an import, so this and importToConst
+ *  are deliberately two helpers. Folding them into one shared helper yields a bundle that
+ *  parses and runs with every renamed binding pointing at the wrong value. */
 function exportToReturn(src: string): string {
   return src.replace(/export\s*\{([^}]*)\};?\s*$/, (_, list: string) =>
     `return{${list.split(',').map((p) => p.trim()).filter(Boolean).map((p) => {
@@ -1927,7 +1930,9 @@ function exportToReturn(src: string): string {
     }).join(',')}};`);
 }
 
-/** `import{Name as a,b}from"<from>"` becomes `const{Name:a,b}=<obj>;`. */
+/** `import{Name as a,b}from"<from>"` becomes `const{Name:a,b}=<obj>;`.
+ *  `[^}]*` and not `.*`: OrbitControls.js spells its import over 12 tab-indented lines, which a
+ *  dot never crosses. See exportToReturn on why the two directions are not one helper. */
 function importToConst(src: string, from: string, obj: string): string {
   const quoted = from.replace(/[./]/g, '\\$&');
   return src.replace(new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*['"]${quoted}['"];?`), (_, list: string) =>
@@ -1937,7 +1942,11 @@ function importToConst(src: string, from: string, obj: string): string {
     }).filter(Boolean).join(',')}}=${obj};`);
 }
 
-/** `export{a,b}from"<from>"` re-exports vanish: the merged THREE object carries those names already. */
+/** `export{a,b}from"<from>"` re-exports vanish: the merged THREE object carries those names already.
+ *  three.module.min.js carries one such statement beyond its import and its own export tail. Left
+ *  in place it is a syntax error inside the wrapping function, so it has to go, and going costs
+ *  nothing: on 0.185.1 all 245 re-exported names are among core's 444 exports, and bundleThree
+ *  spreads THREE_CORE into THREE. Recount both on a Three.js upgrade before trusting that. */
 function dropReexports(src: string, from: string): string {
   const quoted = from.replace(/[./]/g, '\\$&');
   return src.replace(new RegExp(`export\\s*\\{[^}]*\\}\\s*from\\s*['"]${quoted}['"];?`, 'g'), '');
@@ -1947,6 +1956,9 @@ function dropReexports(src: string, from: string): string {
  * Three.js as one classic script defining `THREE` and `OrbitControls`. The npm package ships only
  * ES modules, which an inline <script> cannot import, so each file is wrapped in a function that
  * returns its exports and every import becomes destructuring from the previous one.
+ * Six rewrites over four patterns: core's export tail, then main's import, its re-export and its
+ * export tail, then OrbitControls' import and export. The re-export deletion is the one a reader
+ * of the module files would not predict; dropReexports says why it is safe.
  * ponytail: four regular expressions against a pinned input, held by the bundleThree test. If an
  * upgrade changes the file shape, wrap build/three.cjs (2.1 MB, no require calls) whole instead.
  */

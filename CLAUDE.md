@@ -34,6 +34,8 @@ Flags: `--narratives` (optional; without it only the physical checks run), `--ou
 
 After touching a check or the printer, run `npm test`. If a golden test fails and the new output is what you intended, regenerate with `npm run review -- <schema> --narratives <narratives> --out <golden dir>` and read `git diff` on the golden directory before accepting it. A new finding on either fixture is a flaw you deliberately added to the schema or a false positive to fix.
 
+One gap is open on purpose. Neither fixture contains a self-referencing table — the edge-case file's "foreign-key cycle" is `site → region → site`, two tables rather than one pointing at itself — so the self-reference branches in `svgErd()` and in the 3D layout are only ever reached by hand-built input inside `test/archlens.test.ts`, never by a golden run. Adding one to a fixture would close it and move the finding counts both goldens pin. The comment above the `informer` group in the test file says the same thing where it bites.
+
 The script does not write `examples/out/REVIEW.md`. That file is the hand-written judgment pass and the reference for what one should look like.
 
 ## How the script is put together
